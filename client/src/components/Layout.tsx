@@ -1,7 +1,12 @@
+import { useEffect, useState } from "react";
 import { Link, Outlet } from "react-router-dom";
 import { useLocale, type Lang } from "../i18n";
+import { useSync } from "../sync";
 import { useTheme } from "../theme";
 import Logo from "./Logo";
+import SyncConflictDialog from "./SyncConflictDialog";
+import SyncIndicator from "./SyncIndicator";
+import SyncSettingsDialog from "./SyncSettingsDialog";
 
 function ThemeToggle() {
   const { theme, toggle } = useTheme();
@@ -50,6 +55,18 @@ function LanguageSwitcher() {
 }
 
 export default function Layout() {
+  const { status } = useSync();
+  const [showSettings, setShowSettings] = useState(false);
+  const [dismissedConflict, setDismissedConflict] = useState(false);
+
+  const conflict = status?.state === "conflict" ? status.conflict : null;
+
+  // Ein neu auftretender Konflikt soll das Popup wieder öffnen,
+  // auch wenn zuvor "Später" gewählt wurde.
+  useEffect(() => {
+    if (!conflict) setDismissedConflict(false);
+  }, [conflict]);
+
   return (
     <>
       <header className="appbar">
@@ -59,6 +76,7 @@ export default function Layout() {
             <span className="brand-name">Flashy</span>
           </Link>
           <div className="appbar-controls">
+            <SyncIndicator onOpen={() => setShowSettings(true)} />
             <LanguageSwitcher />
             <ThemeToggle />
           </div>
@@ -67,6 +85,12 @@ export default function Layout() {
       <main className="page">
         <Outlet />
       </main>
+
+      {showSettings && <SyncSettingsDialog onClose={() => setShowSettings(false)} />}
+
+      {conflict && !dismissedConflict && (
+        <SyncConflictDialog conflict={conflict} onClose={() => setDismissedConflict(true)} />
+      )}
     </>
   );
 }

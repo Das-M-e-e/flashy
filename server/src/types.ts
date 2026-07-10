@@ -55,3 +55,70 @@ export interface ProjectStats extends MasterySummary {
   deckCount: number;
   cardCount: number;
 }
+
+// ---------- Sync ----------
+
+export interface SnapshotCounts {
+  projects: number;
+  decks: number;
+  cards: number;
+}
+
+export interface Snapshot {
+  formatVersion: number;
+  deviceName: string;
+  updatedAt: string;
+  counts: SnapshotCounts;
+  data: {
+    projects: Project[];
+    decks: Deck[];
+    cards: Card[];
+  };
+}
+
+/** Zusammenfassung eines Standes, wie sie im Konflikt-Popup angezeigt wird. */
+export interface SnapshotSummary {
+  deviceName: string;
+  updatedAt: string;
+  counts: SnapshotCounts;
+}
+
+export interface ConflictInfo {
+  local: SnapshotSummary;
+  remote: SnapshotSummary;
+  /** Welcher Stand ist der zeitlich jüngere? */
+  newer: "local" | "remote";
+}
+
+export type SyncStateName = "disabled" | "idle" | "syncing" | "conflict" | "error";
+
+export interface SyncStatus {
+  state: SyncStateName;
+  dirty: boolean;
+  lastSyncedAt: string | null;
+  error: string | null;
+  conflict: ConflictInfo | null;
+  dataVersion: number;
+}
+
+export interface SyncConfigView {
+  configured: boolean;
+  owner: string | null;
+  repo: string | null;
+  branch: string | null;
+  path: string;
+  hasToken: boolean;
+  githubLogin: string | null;
+  deviceName: string;
+  autoSync: boolean;
+  intervalMinutes: number;
+}
+
+export interface RepoOption {
+  owner: string;
+  name: string;
+  fullName: string;
+  private: boolean;
+  defaultBranch: string;
+  updatedAt: string;
+}

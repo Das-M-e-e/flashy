@@ -1,4 +1,14 @@
-import type { Card, Deck, DeckStats, Direction, Project, ProjectStats } from "./types";
+import type {
+  Card,
+  Deck,
+  DeckStats,
+  Direction,
+  Project,
+  ProjectStats,
+  RepoOption,
+  SyncConfigView,
+  SyncStatus,
+} from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -61,4 +71,27 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ direction, correct }),
     }),
+
+  // ---------- Sync ----------
+  syncConfig: () => request<SyncConfigView>("/api/sync/config"),
+  syncSaveToken: (token: string) =>
+    request<{ login: string }>("/api/sync/token", { method: "POST", body: JSON.stringify({ token }) }),
+  syncDeleteToken: () => request<void>("/api/sync/token", { method: "DELETE" }),
+  syncRepos: () => request<RepoOption[]>("/api/sync/repos"),
+  syncBranches: (owner: string, repo: string) =>
+    request<string[]>(`/api/sync/branches?owner=${encodeURIComponent(owner)}&repo=${encodeURIComponent(repo)}`),
+  syncSaveConfig: (config: {
+    owner: string;
+    repo: string;
+    branch: string;
+    path: string;
+    deviceName: string;
+    autoSync: boolean;
+    intervalMinutes: number;
+  }) => request<SyncConfigView>("/api/sync/config", { method: "PUT", body: JSON.stringify(config) }),
+  syncUnlink: () => request<SyncConfigView>("/api/sync/config", { method: "DELETE" }),
+  syncStatus: () => request<SyncStatus>("/api/sync/status"),
+  syncNow: () => request<SyncStatus>("/api/sync/now", { method: "POST", body: JSON.stringify({}) }),
+  syncResolve: (choice: "local" | "remote") =>
+    request<SyncStatus>("/api/sync/resolve", { method: "POST", body: JSON.stringify({ choice }) }),
 };

@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
@@ -14,7 +15,9 @@ import type {
   ProjectStats,
 } from "./types";
 
-const dataDir = path.join(__dirname, "..", "data");
+const dataDir = process.env.DATA_DIR
+  ? path.resolve(process.env.DATA_DIR)
+  : path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, "flashy.db"));
@@ -56,7 +59,50 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_decks_project ON decks(project_id);
   CREATE INDEX IF NOT EXISTS idx_cards_deck ON cards(deck_id);
   CREATE INDEX IF NOT EXISTS idx_card_stats_card ON card_stats(card_id);
+
+  CREATE TABLE IF NOT EXISTS sync_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    owner TEXT,
+    repo TEXT,
+    branch TEXT,
+    path TEXT NOT NULL DEFAULT 'flashy-data.json',
+    token TEXT,
+    github_login TEXT,
+    device_name TEXT,
+    auto_sync INTEGER NOT NULL DEFAULT 1,
+    interval_minutes INTEGER NOT NULL DEFAULT 5
+  );
+
+  CREATE TABLE IF NOT EXISTS sync_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    revision INTEGER NOT NULL DEFAULT 0,
+    synced_revision INTEGER NOT NULL DEFAULT 0,
+    data_version INTEGER NOT NULL DEFAULT 0,
+    remote_sha TEXT,
+    last_synced_at TEXT,
+    last_error TEXT,
+    pending_conflict TEXT
+  );
 `);
+
+// Beim allerersten Anlegen von sync_state gelten bereits vorhandene Daten als
+// "lokal geändert" -- sonst würde der erste Sync sie stillschweigend durch den
+// Remote-Stand ersetzen.
+{
+  const existing = getRow<{ id: number }>("SELECT id FROM sync_state WHERE id = 1");
+  if (!existing) {
+    const hasData = getRow<{ n: number }>("SELECT COUNT(*) as n FROM projects")!.n > 0;
+    db.prepare(
+      "INSERT INTO sync_state (id, revision, synced_revision, data_version) VALUES (1, ?, 0, 0)"
+    ).run(hasData ? 1 : 0);
+  }
+  const config = getRow<{ id: number }>("SELECT id FROM sync_config WHERE id = 1");
+  if (!config) {
+    db.prepare(
+      "INSERT INTO sync_config (id, path, device_name, auto_sync, interval_minutes) VALUES (1, 'flashy-data.json', ?, 1, 5)"
+    ).run(os.hostname());
+  }
+}
 
 export function nowIso(): string {
   return new Date().toISOString();
@@ -72,6 +118,13 @@ function getRow<T>(sql: string, ...params: SqlParam[]): T | undefined {
   return db.prepare(sql).get(...params) as unknown as T | undefined;
 }
 
+// ---------- Änderungszähler ----------
+
+/** Erhöht die lokale Revision. Aufzurufen bei jeder schreibenden Datenänderung. */
+export function touch(): void {
+  db.prepare("UPDATE sync_state SET revision = revision + 1 WHERE id = 1").run();
+}
+
 // ---------- Projects ----------
 
 export function listProjects(): Project[] {
@@ -85,15 +138,18 @@ export function getProject(id: string): Project | undefined {
 export function createProject(id: string, name: string): Project {
   const createdAt = nowIso();
   db.prepare("INSERT INTO projects (id, name, created_at) VALUES (?, ?, ?)").run(id, name, createdAt);
+  touch();
   return { id, name, createdAt };
 }
 
 export function renameProject(id: string, name: string): void {
   db.prepare("UPDATE projects SET name = ? WHERE id = ?").run(name, id);
+  touch();
 }
 
 export function deleteProject(id: string): void {
   db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+  touch();
 }
 
 // ---------- Decks ----------
@@ -120,15 +176,18 @@ export function createDeck(id: string, projectId: string, name: string): Deck {
     name,
     createdAt
   );
+  touch();
   return { id, projectId, name, createdAt };
 }
 
 export function renameDeck(id: string, name: string): void {
   db.prepare("UPDATE decks SET name = ? WHERE id = ?").run(name, id);
+  touch();
 }
 
 export function deleteDeck(id: string): void {
   db.prepare("DELETE FROM decks WHERE id = ?").run(id);
+  touch();
 }
 
 // ---------- Cards ----------
@@ -212,6 +271,7 @@ export function createCard(
     "INSERT INTO cards (id, deck_id, front, back, bidirectional, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
   ).run(id, deckId, front, back, bidirectional ? 1 : 0, timestamp, timestamp);
   ensureStatsRows(id, bidirectional);
+  touch();
   return getCard(id)!;
 }
 
@@ -229,11 +289,13 @@ export function updateCard(
     id
   );
   ensureStatsRows(id, bidirectional);
+  touch();
   return getCard(id);
 }
 
 export function deleteCard(id: string): void {
   db.prepare("DELETE FROM cards WHERE id = ?").run(id);
+  touch();
 }
 
 export function recordAnswer(cardId: string, direction: Direction, correct: boolean): void {
@@ -243,6 +305,7 @@ export function recordAnswer(cardId: string, direction: Direction, correct: bool
      VALUES (?, ?, ?, ?)
      ON CONFLICT(card_id, direction) DO UPDATE SET ${column} = ${column} + 1`
   ).run(cardId, direction, correct ? 1 : 0, correct ? 0 : 1);
+  touch();
 }
 
 // ---------- Mastery ----------
@@ -291,4 +354,111 @@ export function computeProjectStats(projectId: string): ProjectStats {
     cardCount: cards.length,
     ...summarize(items),
   };
+}
+
+// ---------- Sync-Konfiguration ----------
+
+export interface SyncConfigRow {
+  owner: string | null;
+  repo: string | null;
+  branch: string | null;
+  path: string;
+  token: string | null;
+  githubLogin: string | null;
+  deviceName: string | null;
+  autoSync: number;
+  intervalMinutes: number;
+}
+
+export function getSyncConfig(): SyncConfigRow {
+  return getRow<SyncConfigRow>(
+    `SELECT owner, repo, branch, path, token, github_login as githubLogin,
+            device_name as deviceName, auto_sync as autoSync, interval_minutes as intervalMinutes
+     FROM sync_config WHERE id = 1`
+  )!;
+}
+
+export function setSyncToken(token: string | null, githubLogin: string | null): void {
+  db.prepare("UPDATE sync_config SET token = ?, github_login = ? WHERE id = 1").run(token, githubLogin);
+}
+
+export function setSyncTarget(opts: {
+  owner: string;
+  repo: string;
+  branch: string;
+  path: string;
+  deviceName: string;
+  autoSync: boolean;
+  intervalMinutes: number;
+}): void {
+  db.prepare(
+    `UPDATE sync_config SET owner = ?, repo = ?, branch = ?, path = ?, device_name = ?,
+            auto_sync = ?, interval_minutes = ? WHERE id = 1`
+  ).run(
+    opts.owner,
+    opts.repo,
+    opts.branch,
+    opts.path,
+    opts.deviceName,
+    opts.autoSync ? 1 : 0,
+    opts.intervalMinutes
+  );
+}
+
+/** Löst die Verknüpfung: Token, Ziel-Repo und Sync-Zustand werden verworfen. */
+export function clearSyncConfig(): void {
+  db.prepare(
+    `UPDATE sync_config SET owner = NULL, repo = NULL, branch = NULL, token = NULL,
+            github_login = NULL, path = 'flashy-data.json' WHERE id = 1`
+  ).run();
+  db.prepare(
+    `UPDATE sync_state SET synced_revision = 0, remote_sha = NULL, last_synced_at = NULL,
+            last_error = NULL, pending_conflict = NULL WHERE id = 1`
+  ).run();
+}
+
+// ---------- Sync-Zustand ----------
+
+export interface SyncStateRow {
+  revision: number;
+  syncedRevision: number;
+  dataVersion: number;
+  remoteSha: string | null;
+  lastSyncedAt: string | null;
+  lastError: string | null;
+  pendingConflict: string | null;
+}
+
+export function getSyncState(): SyncStateRow {
+  return getRow<SyncStateRow>(
+    `SELECT revision, synced_revision as syncedRevision, data_version as dataVersion,
+            remote_sha as remoteSha, last_synced_at as lastSyncedAt,
+            last_error as lastError, pending_conflict as pendingConflict
+     FROM sync_state WHERE id = 1`
+  )!;
+}
+
+/** Markiert den übergebenen Revisionsstand als erfolgreich synchronisiert. */
+export function markSynced(revision: number, remoteSha: string): void {
+  db.prepare(
+    `UPDATE sync_state SET synced_revision = ?, remote_sha = ?, last_synced_at = ?,
+            last_error = NULL, pending_conflict = NULL WHERE id = 1`
+  ).run(revision, remoteSha, nowIso());
+}
+
+export function setSyncError(message: string | null): void {
+  db.prepare("UPDATE sync_state SET last_error = ? WHERE id = 1").run(message);
+}
+
+export function setPendingConflict(payload: string | null): void {
+  db.prepare("UPDATE sync_state SET pending_conflict = ? WHERE id = 1").run(payload);
+}
+
+/** Nach dem Übernehmen von Remote-Daten: Clients müssen neu laden. */
+export function bumpDataVersion(): void {
+  db.prepare("UPDATE sync_state SET data_version = data_version + 1 WHERE id = 1").run();
+}
+
+export function defaultDeviceName(): string {
+  return os.hostname();
 }
