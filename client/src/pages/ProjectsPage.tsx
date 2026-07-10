@@ -1,46 +1,66 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
+import Avatar from "../components/Avatar";
 import ConfirmDialog from "../components/ConfirmDialog";
-import type { Project } from "../types";
+import DistributionBar from "../components/DistributionBar";
+import NameDialog from "../components/NameDialog";
+import ProgressRing from "../components/ProgressRing";
+import { useLocale } from "../i18n";
+import type { Project, ProjectStats } from "../types";
 
 export default function ProjectsPage() {
+  const { t } = useLocale();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [stats, setStats] = useState<Record<string, ProjectStats>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [newName, setNewName] = useState("");
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
-  useEffect(() => {
-    api
-      .listProjects()
-      .then(setProjects)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
-
-  async function handleCreate() {
-    if (!newName.trim()) return;
+  async function load() {
     try {
-      const project = await api.createProject(newName.trim());
-      setProjects((prev) => [...prev, project]);
-      setNewName("");
+      const list = await api.listProjects();
+      setProjects(list);
+      const entries = await Promise.all(
+        list.map(async (p) => [p.id, await api.projectStats(p.id)] as const)
+      );
+      setStats(Object.fromEntries(entries));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Erstellen");
+      setError(err instanceof Error ? err.message : t("error.load"));
+    } finally {
+      setLoading(false);
     }
   }
 
-  async function handleRename(id: string) {
-    if (!renameValue.trim()) return;
-    try {
-      const updated = await api.renameProject(id, renameValue.trim());
-      setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
-      setRenamingId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Umbenennen");
-    }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function handleCreate(name: string) {
+    const project = await api.createProject(name);
+    setProjects((prev) => [...prev, project]);
+    setStats((prev) => ({
+      ...prev,
+      [project.id]: {
+        projectId: project.id,
+        deckCount: 0,
+        cardCount: 0,
+        itemCount: 0,
+        masteryPercent: 0,
+        masteryLabel: "empty",
+        buckets: { new: 0, learning: 0, known: 0, mastered: 0 },
+      },
+    }));
+    setCreating(false);
+  }
+
+  async function handleRename(id: string, name: string) {
+    const updated = await api.renameProject(id, name);
+    setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    setRenameTarget(null);
   }
 
   async function handleDelete(id: string) {
@@ -48,7 +68,7 @@ export default function ProjectsPage() {
       await api.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Löschen");
+      setError(err instanceof Error ? err.message : t("error.delete"));
     } finally {
       setDeleteTarget(null);
     }
@@ -57,67 +77,84 @@ export default function ProjectsPage() {
   return (
     <div>
       <div className="topbar">
-        <h1>Flashy</h1>
+        <h1>{t("projects.heading")}</h1>
       </div>
       {error && <div className="error-banner">{error}</div>}
       <div className="toolbar">
-        <input
-          type="text"
-          placeholder="Neues Projekt..."
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-        />
-        <button className="primary" onClick={handleCreate}>
-          Projekt anlegen
+        <button className="primary" onClick={() => setCreating(true)}>
+          {t("projects.new")}
         </button>
       </div>
 
       {loading ? (
-        <p>Lade...</p>
+        <p>{t("common.loading")}</p>
       ) : projects.length === 0 ? (
-        <div className="empty-state">Noch keine Projekte. Lege dein erstes Projekt an.</div>
+        <div className="empty-state">{t("projects.empty")}</div>
       ) : (
         <div className="list">
-          {projects.map((project) => (
-            <div className="card-item" key={project.id}>
-              <div className="card-item-main">
-                {renamingId === project.id ? (
-                  <input
-                    type="text"
-                    value={renameValue}
-                    autoFocus
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleRename(project.id)}
-                    onBlur={() => handleRename(project.id)}
-                  />
-                ) : (
-                  <Link to={`/projects/${project.id}`} className="card-item-title">
+          {projects.map((project) => {
+            const s = stats[project.id];
+            return (
+              <div className="entity-card" key={project.id}>
+                <Avatar name={project.name} />
+                <div className="entity-main">
+                  <Link to={`/projects/${project.id}`} className="entity-title">
                     {project.name}
                   </Link>
-                )}
+                  <div className="entity-meta">
+                    <span>
+                      {s?.deckCount === 1
+                        ? t("stats.decks.one")
+                        : t("stats.decks", { count: s?.deckCount ?? 0 })}
+                    </span>
+                    <span className="dot">·</span>
+                    <span>
+                      {s?.cardCount === 1
+                        ? t("stats.cards.one")
+                        : t("stats.cards", { count: s?.cardCount ?? 0 })}
+                    </span>
+                  </div>
+                  {s && s.itemCount > 0 && <DistributionBar buckets={s.buckets} />}
+                </div>
+                <div className="entity-viz">
+                  <ProgressRing percent={s?.masteryPercent ?? 0} empty={!s || s.itemCount === 0} />
+                </div>
+                <div className="entity-actions">
+                  <button onClick={() => setRenameTarget(project)}>{t("common.rename")}</button>
+                  <button className="danger" onClick={() => setDeleteTarget(project)}>
+                    {t("common.delete")}
+                  </button>
+                </div>
               </div>
-              <div className="card-item-actions">
-                <button
-                  onClick={() => {
-                    setRenamingId(project.id);
-                    setRenameValue(project.name);
-                  }}
-                >
-                  Umbenennen
-                </button>
-                <button className="danger" onClick={() => setDeleteTarget(project)}>
-                  Löschen
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+
+      {creating && (
+        <NameDialog
+          title={t("projects.newTitle")}
+          label={t("projects.nameLabel")}
+          placeholder={t("projects.namePlaceholder")}
+          submitLabel={t("common.create")}
+          onCancel={() => setCreating(false)}
+          onSubmit={handleCreate}
+        />
+      )}
+
+      {renameTarget && (
+        <NameDialog
+          title={t("projects.renameTitle")}
+          label={t("projects.nameLabel")}
+          initialValue={renameTarget.name}
+          onCancel={() => setRenameTarget(null)}
+          onSubmit={(name) => handleRename(renameTarget.id, name)}
+        />
       )}
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`Projekt "${deleteTarget.name}" inklusive aller Stapel und Karten wirklich löschen?`}
+          message={t("projects.deleteConfirm", { name: deleteTarget.name })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDelete(deleteTarget.id)}
         />

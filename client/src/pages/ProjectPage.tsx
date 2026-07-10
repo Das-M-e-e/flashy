@@ -1,21 +1,28 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import Avatar from "../components/Avatar";
 import ConfirmDialog from "../components/ConfirmDialog";
-import MasteryBar from "../components/MasteryBar";
+import DistributionBar from "../components/DistributionBar";
+import NameDialog from "../components/NameDialog";
+import ProgressRing from "../components/ProgressRing";
+import { useLocale } from "../i18n";
 import type { Deck, DeckStats, Project } from "../types";
 
+const EMPTY_BUCKETS = { new: 0, learning: 0, known: 0, mastered: 0 };
+
 export default function ProjectPage() {
+  const { t } = useLocale();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [project, setProject] = useState<Project | null>(null);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [stats, setStats] = useState<Record<string, DeckStats>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [newDeckName, setNewDeckName] = useState("");
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<Deck | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Deck | null>(null);
 
   async function load() {
@@ -23,15 +30,14 @@ export default function ProjectPage() {
     setLoading(true);
     try {
       const [projects, deckList] = await Promise.all([api.listProjects(), api.listDecks(projectId)]);
-      const current = projects.find((p) => p.id === projectId) ?? null;
-      setProject(current);
+      setProject(projects.find((p) => p.id === projectId) ?? null);
       setDecks(deckList);
       const statEntries = await Promise.all(
         deckList.map(async (deck) => [deck.id, await api.deckStats(deck.id)] as const)
       );
       setStats(Object.fromEntries(statEntries));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Laden");
+      setError(err instanceof Error ? err.message : t("error.load"));
     } finally {
       setLoading(false);
     }
@@ -42,30 +48,25 @@ export default function ProjectPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId]);
 
-  async function handleCreateDeck() {
-    if (!projectId || !newDeckName.trim()) return;
-    try {
-      const deck = await api.createDeck(projectId, newDeckName.trim());
-      setDecks((prev) => [...prev, deck]);
-      setStats((prev) => ({
-        ...prev,
-        [deck.id]: { deckId: deck.id, itemCount: 0, masteryPercent: 0, masteryLabel: "keine Karten" },
-      }));
-      setNewDeckName("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Erstellen");
-    }
+  function refreshDeckStats(deckId: string) {
+    api.deckStats(deckId).then((s) => setStats((prev) => ({ ...prev, [deckId]: s })));
   }
 
-  async function handleRenameDeck(id: string) {
-    if (!renameValue.trim()) return;
-    try {
-      const updated = await api.renameDeck(id, renameValue.trim());
-      setDecks((prev) => prev.map((d) => (d.id === id ? updated : d)));
-      setRenamingId(null);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Umbenennen");
-    }
+  async function handleCreateDeck(name: string) {
+    if (!projectId) return;
+    const deck = await api.createDeck(projectId, name);
+    setDecks((prev) => [...prev, deck]);
+    setStats((prev) => ({
+      ...prev,
+      [deck.id]: { deckId: deck.id, itemCount: 0, masteryPercent: 0, masteryLabel: "empty", buckets: EMPTY_BUCKETS },
+    }));
+    setCreating(false);
+  }
+
+  async function handleRenameDeck(id: string, name: string) {
+    const updated = await api.renameDeck(id, name);
+    setDecks((prev) => prev.map((d) => (d.id === id ? updated : d)));
+    setRenameTarget(null);
   }
 
   async function handleDeleteDeck(id: string) {
@@ -73,92 +74,135 @@ export default function ProjectPage() {
       await api.deleteDeck(id);
       setDecks((prev) => prev.filter((d) => d.id !== id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Löschen");
+      setError(err instanceof Error ? err.message : t("error.delete"));
     } finally {
       setDeleteTarget(null);
     }
   }
 
-  if (loading) return <p>Lade...</p>;
-  if (!project) return <div className="empty-state">Projekt nicht gefunden. <Link to="/">Zurück</Link></div>;
+  async function handleImportDeck(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !projectId) return;
+    try {
+      const deckName = file.name.replace(/\.[^.]+$/, "") || t("deck.fallbackTitle");
+      const deck = await api.createDeck(projectId, deckName);
+      await api.importDeck(deck.id, file);
+      setDecks((prev) => [...prev, deck]);
+      refreshDeckStats(deck.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.import"));
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  if (loading) return <p>{t("common.loading")}</p>;
+  if (!project)
+    return (
+      <div className="empty-state">
+        {t("project.notFound")} <Link to="/">{t("common.back")}</Link>
+      </div>
+    );
 
   return (
     <div>
       <div className="breadcrumb">
-        <Link to="/">Projekte</Link>
+        <Link to="/">{t("nav.projects")}</Link>
       </div>
       <div className="topbar">
+        <Avatar name={project.name} size={40} />
         <h1>{project.name}</h1>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
       <div className="toolbar">
-        <input
-          type="text"
-          placeholder="Neuer Stapel..."
-          value={newDeckName}
-          onChange={(e) => setNewDeckName(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && handleCreateDeck()}
-        />
-        <button className="primary" onClick={handleCreateDeck}>
-          Stapel anlegen
+        <button className="primary" onClick={() => setCreating(true)}>
+          {t("project.newDeck")}
         </button>
-        <button
-          disabled={decks.length === 0}
-          onClick={() => navigate(`/study/project/${project.id}`)}
-        >
-          Alle Stapel gemischt lernen
+        <button onClick={() => fileInputRef.current?.click()}>{t("project.importDeck")}</button>
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={handleImportDeck}
+        />
+        <button disabled={decks.length === 0} onClick={() => navigate(`/study/project/${project.id}`)}>
+          {t("project.studyAll")}
         </button>
         <a className="button" href={api.exportProjectUrl(project.id)}>
-          Projekt exportieren (ZIP)
+          {t("project.exportZip")}
         </a>
       </div>
 
       {decks.length === 0 ? (
-        <div className="empty-state">Noch keine Stapel. Lege deinen ersten Stapel an.</div>
+        <div className="empty-state">{t("project.empty")}</div>
       ) : (
         <div className="list">
-          {decks.map((deck) => (
-            <div className="card-item" key={deck.id}>
-              <div className="card-item-main">
-                {renamingId === deck.id ? (
-                  <input
-                    type="text"
-                    value={renameValue}
-                    autoFocus
-                    onChange={(e) => setRenameValue(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleRenameDeck(deck.id)}
-                    onBlur={() => handleRenameDeck(deck.id)}
-                  />
-                ) : (
-                  <Link to={`/decks/${deck.id}`} className="card-item-title">
+          {decks.map((deck) => {
+            const s = stats[deck.id];
+            return (
+              <div className="entity-card" key={deck.id}>
+                <Avatar name={deck.name} />
+                <div className="entity-main">
+                  <Link to={`/decks/${deck.id}`} className="entity-title">
                     {deck.name}
                   </Link>
-                )}
-                <MasteryBar stats={stats[deck.id]} />
+                  <div className="entity-meta">
+                    <span>
+                      {s?.itemCount === 1
+                        ? t("stats.cards.one")
+                        : t("stats.cards", { count: s?.itemCount ?? 0 })}
+                    </span>
+                    {s && s.itemCount > 0 && (
+                      <>
+                        <span className="dot">·</span>
+                        <span>{t("mastery.secure", { percent: s.masteryPercent })}</span>
+                      </>
+                    )}
+                  </div>
+                  {s && s.itemCount > 0 && <DistributionBar buckets={s.buckets} />}
+                </div>
+                <div className="entity-viz">
+                  <ProgressRing percent={s?.masteryPercent ?? 0} empty={!s || s.itemCount === 0} />
+                </div>
+                <div className="entity-actions">
+                  <button onClick={() => navigate(`/study/deck/${deck.id}`)}>{t("common.study")}</button>
+                  <button onClick={() => setRenameTarget(deck)}>{t("common.rename")}</button>
+                  <button className="danger" onClick={() => setDeleteTarget(deck)}>
+                    {t("common.delete")}
+                  </button>
+                </div>
               </div>
-              <div className="card-item-actions">
-                <button onClick={() => navigate(`/study/deck/${deck.id}`)}>Lernen</button>
-                <button
-                  onClick={() => {
-                    setRenamingId(deck.id);
-                    setRenameValue(deck.name);
-                  }}
-                >
-                  Umbenennen
-                </button>
-                <button className="danger" onClick={() => setDeleteTarget(deck)}>
-                  Löschen
-                </button>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
+      )}
+
+      {creating && (
+        <NameDialog
+          title={t("project.newDeckTitle")}
+          label={t("project.deckNameLabel")}
+          placeholder={t("project.deckNamePlaceholder")}
+          submitLabel={t("common.create")}
+          onCancel={() => setCreating(false)}
+          onSubmit={handleCreateDeck}
+        />
+      )}
+
+      {renameTarget && (
+        <NameDialog
+          title={t("project.renameDeckTitle")}
+          label={t("project.deckNameLabel")}
+          initialValue={renameTarget.name}
+          onCancel={() => setRenameTarget(null)}
+          onSubmit={(name) => handleRenameDeck(renameTarget.id, name)}
+        />
       )}
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`Stapel "${deleteTarget.name}" inklusive aller Karten wirklich löschen?`}
+          message={t("project.deckDeleteConfirm", { name: deleteTarget.name })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDeleteDeck(deleteTarget.id)}
         />

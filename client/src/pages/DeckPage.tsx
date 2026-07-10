@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
+import Avatar from "../components/Avatar";
 import CardEditorModal from "../components/CardEditorModal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import MasteryBar from "../components/MasteryBar";
+import DistributionBar from "../components/DistributionBar";
+import ProgressRing from "../components/ProgressRing";
+import { useLocale } from "../i18n";
 import type { Card, Deck, DeckStats } from "../types";
 
 export default function DeckPage() {
+  const { t } = useLocale();
   const { deckId } = useParams<{ deckId: string }>();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,7 +36,7 @@ export default function DeckPage() {
       setCards(cardList);
       setStats(deckStats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Laden");
+      setError(err instanceof Error ? err.message : t("error.load"));
     } finally {
       setLoading(false);
     }
@@ -62,7 +66,7 @@ export default function DeckPage() {
       setCards((prev) => prev.filter((c) => c.id !== id));
       if (deckId) api.deckStats(deckId).then(setStats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fehler beim Löschen");
+      setError(err instanceof Error ? err.message : t("error.delete"));
     } finally {
       setDeleteTarget(null);
     }
@@ -76,34 +80,61 @@ export default function DeckPage() {
       setCards(result.cards);
       api.deckStats(deckId).then(setStats);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Import fehlgeschlagen");
+      setError(err instanceof Error ? err.message : t("error.import"));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
-  if (loading) return <p>Lade...</p>;
+  if (loading) return <p>{t("common.loading")}</p>;
 
   return (
     <div>
       <div className="breadcrumb">
-        <Link to="/">Projekte</Link>
-        {deck && <> &rsaquo; <Link to={`/projects/${deck.projectId}`}>Projekt</Link></>}
+        <Link to="/">{t("nav.projects")}</Link>
+        {deck && (
+          <>
+            <span className="dot">›</span>
+            <Link to={`/projects/${deck.projectId}`}>{t("deck.fallbackTitle")}</Link>
+          </>
+        )}
       </div>
-      <div className="topbar">
-        <h1>{deck?.name || "Stapel"}</h1>
+
+      <div className="deck-hero">
+        <Avatar name={deck?.name || t("deck.fallbackTitle")} size={52} />
+        <div className="deck-hero-main">
+          <h1>{deck?.name || t("deck.fallbackTitle")}</h1>
+          {stats && stats.itemCount > 0 ? (
+            <>
+              <div className="mastery-caption">
+                {t("mastery.secure", { percent: stats.masteryPercent })} · {t(`mastery.${stats.masteryLabel}`)}
+              </div>
+              <DistributionBar buckets={stats.buckets} showLegend />
+            </>
+          ) : (
+            <div className="mastery-caption">{t("mastery.empty")}</div>
+          )}
+        </div>
+        <div className="entity-viz">
+          <ProgressRing
+            percent={stats?.masteryPercent ?? 0}
+            size={72}
+            stroke={8}
+            empty={!stats || stats.itemCount === 0}
+          />
+        </div>
       </div>
-      {stats && <MasteryBar stats={stats} />}
+
       {error && <div className="error-banner">{error}</div>}
 
-      <div className="toolbar" style={{ marginTop: 16 }}>
+      <div className="toolbar">
         <button className="primary" onClick={() => setEditingCard("new")}>
-          Karte hinzufügen
+          {t("deck.addCard")}
         </button>
         <button disabled={cards.length === 0} onClick={() => navigate(`/study/deck/${deckId}`)}>
-          Stapel lernen
+          {t("deck.study")}
         </button>
-        <button onClick={() => fileInputRef.current?.click()}>CSV importieren</button>
+        <button onClick={() => fileInputRef.current?.click()}>{t("deck.importCsv")}</button>
         <input
           type="file"
           accept=".csv,text/csv"
@@ -113,26 +144,28 @@ export default function DeckPage() {
         />
         {deckId && (
           <a className="button" href={api.exportDeckUrl(deckId)}>
-            CSV exportieren
+            {t("deck.exportCsv")}
           </a>
         )}
       </div>
 
       {cards.length === 0 ? (
-        <div className="empty-state">Noch keine Karten. Füge manuell welche hinzu oder importiere eine CSV-Datei.</div>
+        <div className="empty-state">{t("deck.empty")}</div>
       ) : (
         <div className="list">
           {cards.map((card) => (
-            <div className="card-item" key={card.id}>
-              <div className="card-item-main">
-                <div className="card-item-title">{card.front}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: 14 }}>{card.back}</div>
+            <div className="flashcard-row" key={card.id}>
+              <div className="flashcard-text">
+                <div className="flashcard-front">{card.front}</div>
+                <div className="flashcard-back">{card.back}</div>
               </div>
-              <span className="badge">{card.bidirectional ? "bidirektional" : "einseitig"}</span>
-              <div className="card-item-actions">
-                <button onClick={() => setEditingCard(card)}>Bearbeiten</button>
+              <span className={card.bidirectional ? "badge bi" : "badge"}>
+                {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
+              </span>
+              <div className="entity-actions">
+                <button onClick={() => setEditingCard(card)}>{t("common.edit")}</button>
                 <button className="danger" onClick={() => setDeleteTarget(card)}>
-                  Löschen
+                  {t("common.delete")}
                 </button>
               </div>
             </div>
@@ -150,7 +183,7 @@ export default function DeckPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={`Karte "${deleteTarget.front}" wirklich löschen?`}
+          message={t("card.deleteConfirm", { front: deleteTarget.front })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDeleteCard(deleteTarget.id)}
         />

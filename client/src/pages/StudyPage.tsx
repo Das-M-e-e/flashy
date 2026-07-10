@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import { useLocale } from "../i18n";
 import { cardToStudyItems, StudyQueue, type StudyItem } from "../lib/studyQueue";
 import type { Card } from "../types";
 
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function StudyPage({ mode }: Props) {
+  const { t } = useLocale();
   const { deckId, projectId } = useParams<{ deckId: string; projectId: string }>();
   const backTo = mode === "deck" ? `/decks/${deckId}` : `/projects/${projectId}`;
 
@@ -37,7 +39,7 @@ export default function StudyPage({ mode }: Props) {
         setQueue(q);
         setCurrent(q.next());
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Fehler beim Laden");
+        setError(err instanceof Error ? err.message : t("error.load"));
       } finally {
         setLoading(false);
       }
@@ -51,7 +53,7 @@ export default function StudyPage({ mode }: Props) {
     try {
       await api.answerCard(current.cardId, current.direction, correct);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Antwort konnte nicht gespeichert werden");
+      setError(err instanceof Error ? err.message : t("error.save"));
     }
     queue.updateItem(current.cardId, current.direction, correct);
     setAnswered((n) => n + 1);
@@ -65,23 +67,24 @@ export default function StudyPage({ mode }: Props) {
     [answered, correctCount]
   );
 
-  if (loading) return <p>Lade...</p>;
+  if (loading) return <p>{t("common.loading")}</p>;
 
   return (
     <div>
       <div className="breadcrumb">
-        <Link to={backTo}>Zurück</Link>
+        <Link to={backTo}>{t("common.back")}</Link>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
       {!queue || queue.size === 0 ? (
-        <div className="empty-state">Keine Karten zum Lernen vorhanden.</div>
+        <div className="empty-state">{t("study.noCards")}</div>
       ) : (
         <>
           <div className="study-header">
-            <span>{queue.size} Lern-Items im Umlauf</span>
+            <span>{t("study.itemsInRotation", { count: queue.size })}</span>
             <span>
-              Beantwortet: {answered} &middot; Richtig: {correctCount} ({accuracy}%)
+              {t("study.answered", { count: answered })} &middot;{" "}
+              {t("study.correct", { count: correctCount, percent: accuracy })}
             </span>
           </div>
 
@@ -90,25 +93,23 @@ export default function StudyPage({ mode }: Props) {
               <div className="study-card" onClick={() => setFlipped((f) => !f)}>
                 <div>
                   {flipped ? current.back : current.front}
-                  <div className="study-card-hint">
-                    {flipped ? "" : "Klicken zum Umdrehen"}
-                  </div>
+                  <div className="study-card-hint">{flipped ? "" : t("study.clickToFlip")}</div>
                 </div>
               </div>
 
               {flipped ? (
                 <div className="study-answer-row">
                   <button className="danger" onClick={() => handleAnswer(false)}>
-                    Falsch
+                    {t("study.wrongBtn")}
                   </button>
                   <button className="primary" onClick={() => handleAnswer(true)}>
-                    Richtig
+                    {t("study.correctBtn")}
                   </button>
                 </div>
               ) : (
                 <div className="study-answer-row">
                   <button className="primary" onClick={() => setFlipped(true)}>
-                    Umdrehen
+                    {t("study.flip")}
                   </button>
                 </div>
               )}
@@ -117,7 +118,7 @@ export default function StudyPage({ mode }: Props) {
 
           <div className="toolbar" style={{ marginTop: 24, justifyContent: "center" }}>
             <Link to={backTo} className="button">
-              Session beenden
+              {t("study.end")}
             </Link>
           </div>
         </>

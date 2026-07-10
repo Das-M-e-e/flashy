@@ -9,9 +9,18 @@ deckStatsRouter.get("/", (req: Request<{ deckId: string }>, res) => {
     res.status(404).json({ error: "Stapel nicht gefunden" });
     return;
   }
-  const cards = db.listCardsByDeck(deck.id);
-  const stats = db.computeMastery(cards);
-  res.json({ ...stats, deckId: deck.id });
+  res.json(db.computeDeckStats(deck.id));
+});
+
+export const projectStatsRouter = Router({ mergeParams: true });
+
+projectStatsRouter.get("/", (req: Request<{ projectId: string }>, res) => {
+  const project = db.getProject(req.params.projectId);
+  if (!project) {
+    res.status(404).json({ error: "Projekt nicht gefunden" });
+    return;
+  }
+  res.json(db.computeProjectStats(project.id));
 });
 
 export const projectStudyRouter = Router({ mergeParams: true });

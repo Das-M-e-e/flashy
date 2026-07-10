@@ -1,7 +1,18 @@
 import fs from "node:fs";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import type { Card, CardStat, Deck, DeckStats, Direction, Project } from "./types";
+import type {
+  Card,
+  CardStat,
+  Deck,
+  DeckStats,
+  Direction,
+  MasteryBuckets,
+  MasteryLevel,
+  MasterySummary,
+  Project,
+  ProjectStats,
+} from "./types";
 
 const dataDir = path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
@@ -238,20 +249,46 @@ export function recordAnswer(cardId: string, direction: Direction, correct: bool
 
 const MASTERY_CAP = 5;
 
-export function computeMastery(cards: Card[]): DeckStats {
-  const items = cards.flatMap((card) => card.stats);
+function levelOf(stat: CardStat): number {
+  return Math.max(0, stat.correctCount - stat.incorrectCount);
+}
+
+function summarize(items: CardStat[]): MasterySummary {
+  const buckets: MasteryBuckets = { new: 0, learning: 0, known: 0, mastered: 0 };
   if (items.length === 0) {
-    return { deckId: "", itemCount: 0, masteryPercent: 0, masteryLabel: "keine Karten" };
+    return { itemCount: 0, masteryPercent: 0, masteryLabel: "empty", buckets };
   }
-  const total = items.reduce((sum, stat) => {
-    const level = Math.max(0, stat.correctCount - stat.incorrectCount);
-    return sum + Math.min(level, MASTERY_CAP) / MASTERY_CAP;
-  }, 0);
+  let total = 0;
+  for (const stat of items) {
+    const level = levelOf(stat);
+    total += Math.min(level, MASTERY_CAP) / MASTERY_CAP;
+    if (level === 0) buckets.new += 1;
+    else if (level <= 2) buckets.learning += 1;
+    else if (level <= 4) buckets.known += 1;
+    else buckets.mastered += 1;
+  }
   const masteryPercent = Math.round((total / items.length) * 100);
-  let masteryLabel: DeckStats["masteryLabel"];
-  if (masteryPercent < 20) masteryLabel = "schwach";
-  else if (masteryPercent < 50) masteryLabel = "mäßig";
-  else if (masteryPercent < 80) masteryLabel = "gut";
-  else masteryLabel = "sehr gut";
-  return { deckId: "", itemCount: items.length, masteryPercent, masteryLabel };
+  let masteryLabel: MasteryLevel;
+  if (masteryPercent < 20) masteryLabel = "weak";
+  else if (masteryPercent < 50) masteryLabel = "moderate";
+  else if (masteryPercent < 80) masteryLabel = "good";
+  else masteryLabel = "excellent";
+  return { itemCount: items.length, masteryPercent, masteryLabel, buckets };
+}
+
+export function computeDeckStats(deckId: string): DeckStats {
+  const items = listCardsByDeck(deckId).flatMap((card) => card.stats);
+  return { deckId, ...summarize(items) };
+}
+
+export function computeProjectStats(projectId: string): ProjectStats {
+  const decks = listDecksByProject(projectId);
+  const cards = listCardsByProject(projectId);
+  const items = cards.flatMap((card) => card.stats);
+  return {
+    projectId,
+    deckCount: decks.length,
+    cardCount: cards.length,
+    ...summarize(items),
+  };
 }

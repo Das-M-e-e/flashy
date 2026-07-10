@@ -30,9 +30,28 @@ export interface Card {
   stats: CardStat[];
 }
 
-export interface DeckStats {
-  deckId: string;
+export type MasteryLevel = "empty" | "weak" | "moderate" | "good" | "excellent";
+
+export interface MasteryBuckets {
+  new: number;
+  learning: number;
+  known: number;
+  mastered: number;
+}
+
+export interface MasterySummary {
   itemCount: number;
   masteryPercent: number;
-  masteryLabel: "schwach" | "mäßig" | "gut" | "sehr gut" | "keine Karten";
+  masteryLabel: MasteryLevel;
+  buckets: MasteryBuckets;
+}
+
+export interface DeckStats extends MasterySummary {
+  deckId: string;
+}
+
+export interface ProjectStats extends MasterySummary {
+  projectId: string;
+  deckCount: number;
+  cardCount: number;
 }

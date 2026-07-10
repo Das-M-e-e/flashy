@@ -1,4 +1,4 @@
-import type { Card, Deck, DeckStats, Direction, Project } from "./types";
+import type { Card, Deck, DeckStats, Direction, Project, ProjectStats } from "./types";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, {
@@ -21,6 +21,7 @@ export const api = {
     request<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
   exportProjectUrl: (id: string) => `/api/projects/${id}/export`,
+  projectStats: (id: string) => request<ProjectStats>(`/api/projects/${id}/stats`),
   studyProjectCards: (id: string) => request<Card[]>(`/api/projects/${id}/study-cards`),
 
   listDecks: (projectId: string) => request<Deck[]>(`/api/projects/${projectId}/decks`),
