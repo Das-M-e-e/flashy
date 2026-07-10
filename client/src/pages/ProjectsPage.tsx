@@ -109,9 +109,10 @@ export default function ProjectsPage() {
                     </span>
                     <span className="dot">·</span>
                     <span>
-                      {s?.cardCount === 1
+                      {/* itemCount wie auf der Stapel-Karte: bidirektionale Karten zählen doppelt. */}
+                      {s?.itemCount === 1
                         ? t("stats.cards.one")
-                        : t("stats.cards", { count: s?.cardCount ?? 0 })}
+                        : t("stats.cards", { count: s?.itemCount ?? 0 })}
                     </span>
                   </div>
                   {s && s.itemCount > 0 && <DistributionBar buckets={s.buckets} />}
