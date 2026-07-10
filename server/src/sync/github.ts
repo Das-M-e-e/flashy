@@ -115,10 +115,71 @@ export async function getFile(
     `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`
   );
   if (res.status === 404) return NOT_FOUND;
+
+  // Über 1 MB liefert die Contents-API den Inhalt nicht als JSON aus --
+  // je nach Größe mit 403 oder mit leerem `content`. Dann über den
+  // raw-Medientyp holen (trägt bis 100 MB).
+  if (res.status === 403) {
+    const message = (await res.clone().text()).toLowerCase();
+    if (message.includes("too large") || message.includes("larger than")) {
+      return getLargeFile(token, owner, repo, path, branch);
+    }
+  }
   if (!res.ok) throw await errorFrom(res);
-  const body = (await res.json()) as { content: string; encoding: string; sha: string };
+
+  const body = (await res.json()) as { content: string; encoding: string; sha: string; size: number };
+  if (body.size > 0 && !body.content) {
+    return getLargeFile(token, owner, repo, path, branch);
+  }
   const content = Buffer.from(body.content, "base64").toString("utf-8");
   return { content, sha: body.sha };
+}
+
+/**
+ * Holt Inhalt und sha getrennt: den Inhalt über den raw-Medientyp,
+ * den sha aus dem Verzeichnis-Listing (das nur Metadaten liefert).
+ */
+async function getLargeFile(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string
+): Promise<RemoteFile | typeof NOT_FOUND> {
+  const rawRes = await request(
+    token,
+    `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+    { headers: { Accept: "application/vnd.github.raw" } }
+  );
+  if (rawRes.status === 404) return NOT_FOUND;
+  if (!rawRes.ok) throw await errorFrom(rawRes);
+  const content = await rawRes.text();
+
+  const sha = await getFileSha(token, owner, repo, path, branch);
+  if (sha === undefined) return NOT_FOUND;
+  return { content, sha };
+}
+
+async function getFileSha(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string
+): Promise<string | undefined> {
+  const slash = path.lastIndexOf("/");
+  const dir = slash === -1 ? "" : path.slice(0, slash);
+  const name = slash === -1 ? path : path.slice(slash + 1);
+
+  const res = await request(
+    token,
+    `/repos/${owner}/${repo}/contents/${encodeURIComponent(dir)}?ref=${encodeURIComponent(branch)}`
+  );
+  if (res.status === 404) return undefined;
+  if (!res.ok) throw await errorFrom(res);
+  const entries = (await res.json()) as { name: string; sha: string }[];
+  if (!Array.isArray(entries)) return undefined;
+  return entries.find((e) => e.name === name)?.sha;
 }
 
 /**

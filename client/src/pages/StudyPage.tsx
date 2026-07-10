@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
+import Markdown from "../components/Markdown";
 import { useLocale } from "../i18n";
+import { isRichContent } from "../lib/markdown";
 import { cardToStudyItems, StudyQueue, type StudyItem } from "../lib/studyQueue";
 import type { Card } from "../types";
 
@@ -90,12 +92,21 @@ export default function StudyPage({ mode }: Props) {
 
           {current && (
             <>
-              <div className="study-card" onClick={() => setFlipped((f) => !f)}>
-                <div>
-                  {flipped ? current.back : current.front}
-                  <div className="study-card-hint">{flipped ? "" : t("study.clickToFlip")}</div>
-                </div>
-              </div>
+              {(() => {
+                const text = flipped ? current.back : current.front;
+                const rich = isRichContent(text);
+                return (
+                  <div
+                    className={`study-card ${rich ? "study-card-rich" : ""}`}
+                    onClick={() => setFlipped((f) => !f)}
+                  >
+                    <div className="study-card-body">
+                      <Markdown>{text}</Markdown>
+                      <div className="study-card-hint">{flipped ? "" : t("study.clickToFlip")}</div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               {flipped ? (
                 <div className="study-answer-row">

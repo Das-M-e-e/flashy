@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useLocale } from "../i18n";
 import type { Card } from "../types";
+import MarkdownField from "./MarkdownField";
 
 interface Props {
   initial?: Card;
@@ -34,17 +35,17 @@ export default function CardEditorModal({ initial, onCancel, onSave }: Props) {
 
   return (
     <div className="modal-overlay" onClick={onCancel}>
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
+      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
         <h3>{initial ? t("card.editTitle") : t("card.newTitle")}</h3>
         {error && <div className="error-banner">{error}</div>}
-        <label>
-          {t("card.front")}
-          <textarea value={front} onChange={(e) => setFront(e.target.value)} autoFocus />
-        </label>
-        <label>
-          {t("card.back")}
-          <textarea value={back} onChange={(e) => setBack(e.target.value)} />
-        </label>
+        <MarkdownField
+          label={t("card.front")}
+          value={front}
+          autoFocus
+          onChange={setFront}
+          onError={setError}
+        />
+        <MarkdownField label={t("card.back")} value={back} onChange={setBack} onError={setError} />
         <label className="checkbox-row">
           <input
             type="checkbox"

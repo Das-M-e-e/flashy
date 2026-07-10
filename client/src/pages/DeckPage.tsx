@@ -7,6 +7,7 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
 import ProgressRing from "../components/ProgressRing";
 import { useLocale } from "../i18n";
+import { hasImage, plainExcerpt } from "../lib/markdown";
 import type { Card, Deck, DeckStats } from "../types";
 
 export default function DeckPage() {
@@ -156,8 +157,14 @@ export default function DeckPage() {
           {cards.map((card) => (
             <div className="flashcard-row" key={card.id}>
               <div className="flashcard-text">
-                <div className="flashcard-front">{card.front}</div>
-                <div className="flashcard-back">{card.back}</div>
+                <div className="flashcard-front">
+                  {hasImage(card.front) && <span className="image-mark" title={t("card.hasImage")} />}
+                  {plainExcerpt(card.front)}
+                </div>
+                <div className="flashcard-back">
+                  {hasImage(card.back) && <span className="image-mark" title={t("card.hasImage")} />}
+                  {plainExcerpt(card.back)}
+                </div>
               </div>
               <span className={card.bidirectional ? "badge bi" : "badge"}>
                 {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
@@ -183,7 +190,7 @@ export default function DeckPage() {
 
       {deleteTarget && (
         <ConfirmDialog
-          message={t("card.deleteConfirm", { front: deleteTarget.front })}
+          message={t("card.deleteConfirm", { front: plainExcerpt(deleteTarget.front, 60) })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDeleteCard(deleteTarget.id)}
         />

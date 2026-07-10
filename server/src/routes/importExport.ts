@@ -1,11 +1,37 @@
 import { randomUUID } from "node:crypto";
-import { Router, type Request } from "express";
+import { Router, type NextFunction, type Request, type Response } from "express";
 import JSZip from "jszip";
 import multer from "multer";
 import * as db from "../db";
 import { parseCsv, toCsv } from "../csv";
 
-const upload = multer({ storage: multer.memoryStorage() });
+const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+
+// CSVs mit eingebetteten Bildern (data-URIs) werden schnell groß.
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_BYTES },
+});
+
+/** Ohne das würde ein zu großer Upload als HTML-500 statt als JSON zurückkommen. */
+function uploadCsv(req: Request, res: Response, next: NextFunction): void {
+  upload.single("file")(req, res, (err: unknown) => {
+    if (err instanceof multer.MulterError) {
+      const tooLarge = err.code === "LIMIT_FILE_SIZE";
+      res.status(tooLarge ? 413 : 400).json({
+        error: tooLarge
+          ? `Datei ist zu groß (maximal ${Math.round(MAX_UPLOAD_BYTES / 1024 / 1024)} MB)`
+          : err.message,
+      });
+      return;
+    }
+    if (err) {
+      next(err);
+      return;
+    }
+    next();
+  });
+}
 
 function sanitizeFileName(name: string): string {
   return name.replace(/[\\/:*?"<>|]/g, "_").trim() || "stapel";
@@ -13,7 +39,7 @@ function sanitizeFileName(name: string): string {
 
 export const deckImportRouter = Router({ mergeParams: true });
 
-deckImportRouter.post("/", upload.single("file"), (req: Request<{ deckId: string }>, res) => {
+deckImportRouter.post("/", uploadCsv, (req: Request<{ deckId: string }>, res) => {
   const deck = db.getDeck(req.params.deckId);
   if (!deck) {
     res.status(404).json({ error: "Stapel nicht gefunden" });

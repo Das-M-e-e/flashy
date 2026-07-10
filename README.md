@@ -39,6 +39,25 @@ desto seltener kommt sie. Es gibt bewusst **keine** Zeitkomponente.
 Karten sind einzeln als bidirektional oder einseitig einstellbar. Eine bidirektionale
 Karte zählt als zwei Lern-Items mit getrennten Statistiken.
 
+## Markdown auf den Karten
+
+Vorder- und Rückseite verstehen Markdown: Überschriften, Listen, Betonung, Code-Blöcke,
+Tabellen, Links und Bilder. Im Karten-Editor schaltet je Feld ein Umschalter zwischen
+**Bearbeiten** und **Vorschau**.
+
+Bilder gehen auf zwei Wegen:
+
+- als externe URL — `![Beschreibung](https://…)`
+- **eingebettet**: Button „Bild einfügen" oder ein Bild aus der Zwischenablage
+  einfügen. Es wird auf max. 1600 px heruntergerechnet und direkt in der Karte
+  gespeichert, funktioniert also offline und synchronisiert mit.
+
+Eingebettete Bilder lassen die Sync-Datei wachsen; pro Bild gilt daher eine Grenze
+von 1 MB. Für viele große Bilder sind externe URLs die sparsamere Wahl.
+
+Rohes HTML wird bewusst **nicht** gerendert, sondern als Text angezeigt — so kann eine
+importierte Karte kein Skript ausführen.
+
 ## Sync über ein eigenes GitHub-Repo
 
 Damit gleichen sich mehrere Geräte ab, ohne dass sie gleichzeitig laufen oder im

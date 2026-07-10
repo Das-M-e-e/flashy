@@ -4,53 +4,115 @@ export interface CsvCardRow {
   bidirectional: boolean;
 }
 
-function splitLine(line: string): string[] {
-  const delimiter = line.includes("\t") ? "\t" : ",";
-  const fields: string[] = [];
-  let current = "";
+/**
+ * Bestimmt das Trennzeichen anhand der ersten Zeile außerhalb von Quotes.
+ * Anki exportiert wahlweise Tab- oder Komma-getrennt.
+ */
+function detectDelimiter(content: string): "," | "\t" {
   let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const char = line[i];
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+    if (char === '"') {
+      if (inQuotes && content[i + 1] === '"') i++;
+      else inQuotes = !inQuotes;
+    } else if (!inQuotes) {
+      if (char === "\t") return "\t";
+      if (char === ",") return ",";
+      if (char === "\n") break;
+    }
+  }
+  return ",";
+}
+
+/**
+ * RFC4180-Tokenizer über den gesamten Text: Zeilenumbrüche innerhalb von
+ * Anführungszeichen gehören zum Feld. Das ist nötig, weil Karteninhalte
+ * mehrzeiliges Markdown sein können.
+ */
+function parseRecords(content: string, delimiter: string): string[][] {
+  const records: string[][] = [];
+  let record: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let fieldWasQuoted = false;
+
+  const endField = () => {
+    record.push(fieldWasQuoted ? field : field.trim());
+    field = "";
+    fieldWasQuoted = false;
+  };
+  const endRecord = () => {
+    endField();
+    records.push(record);
+    record = [];
+  };
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i];
+
     if (inQuotes) {
       if (char === '"') {
-        if (line[i + 1] === '"') {
-          current += '"';
+        if (content[i + 1] === '"') {
+          field += '"';
           i++;
         } else {
           inQuotes = false;
         }
       } else {
-        current += char;
+        field += char;
       }
-    } else if (char === '"') {
+      continue;
+    }
+
+    // Anki-Konvention: '#' am Satzanfang leitet eine Kommentarzeile ein.
+    // Gequotete Felder erreichen diesen Zweig nie, '# Überschrift' bleibt also erhalten.
+    const atRecordStart = record.length === 0 && field.length === 0 && !fieldWasQuoted;
+    if (atRecordStart && char === "#") {
+      while (i < content.length && content[i] !== "\n") i++;
+      continue;
+    }
+
+    if (char === '"') {
       inQuotes = true;
+      fieldWasQuoted = true;
     } else if (char === delimiter) {
-      fields.push(current);
-      current = "";
+      endField();
+    } else if (char === "\r") {
+      // \r\n wird über das folgende \n behandelt; einzelnes \r beendet den Satz.
+      if (content[i + 1] !== "\n") endRecord();
+    } else if (char === "\n") {
+      endRecord();
     } else {
-      current += char;
+      field += char;
     }
   }
-  fields.push(current);
-  return fields;
+
+  // Letzter Satz ohne abschließenden Zeilenumbruch.
+  if (inQuotes || field.length > 0 || record.length > 0) endRecord();
+
+  return records;
 }
 
 export function parseCsv(content: string): CsvCardRow[] {
-  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0 && !line.trim().startsWith("#"));
+  // BOM entfernen, sonst landet es in der ersten Vorderseite.
+  const text = content.replace(/^﻿/, "");
+  const delimiter = detectDelimiter(text);
   const rows: CsvCardRow[] = [];
-  for (const line of lines) {
-    const fields = splitLine(line);
+
+  for (const fields of parseRecords(text, delimiter)) {
     if (fields.length < 2) continue;
     const [front, back, bidirectionalRaw] = fields;
     if (!front.trim() && !back.trim()) continue;
     const bidirectional = bidirectionalRaw === undefined ? true : bidirectionalRaw.trim() !== "0";
-    rows.push({ front: front.trim(), back: back.trim(), bidirectional });
+    rows.push({ front, back, bidirectional });
   }
   return rows;
 }
 
 function escapeField(value: string): string {
-  if (/[",\n\t]/.test(value)) {
+  // Ein führendes '#' muss gequotet werden, sonst liest der Import die Zeile
+  // als Anki-Kommentar -- eine Markdown-Überschrift ginge damit verloren.
+  if (/^#/.test(value) || /[",\n\r\t]/.test(value)) {
     return `"${value.replace(/"/g, '""')}"`;
   }
   return value;

@@ -16,7 +16,8 @@ const port = Number(process.env.SERVER_PORT ?? 4000);
 const host = process.env.HOST ?? "127.0.0.1";
 
 app.use(cors());
-app.use(express.json());
+// Karten dürfen Bilder als data-URI enthalten; die Vorgabe von 100 KB reicht dafür nicht.
+app.use(express.json({ limit: "40mb" }));
 
 app.use("/api/projects", projectsRouter);
 app.use("/api/projects/:projectId/decks", projectDecksRouter);
@@ -32,6 +33,20 @@ app.use("/api/decks/:deckId/stats", deckStatsRouter);
 
 app.use("/api/cards", cardsRouter);
 app.use("/api/sync", syncRouter);
+
+// API-Fehler als JSON ausliefern -- der Client erwartet {error}, keine HTML-Seite.
+app.use((err: NodeJS.ErrnoException & { status?: number; type?: string }, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (!req.path.startsWith("/api")) {
+    next(err);
+    return;
+  }
+  const status = err.status ?? 500;
+  const message =
+    err.type === "entity.too.large"
+      ? "Inhalt ist zu groß. Bitte ein kleineres Bild verwenden."
+      : err.message || "Interner Fehler";
+  res.status(status).json({ error: message });
+});
 
 const clientDist = path.join(__dirname, "..", "..", "client", "dist");
 app.use(express.static(clientDist));
