@@ -435,7 +435,8 @@ a.entity-title:hover {
 
 /* ---------- Deck-Header ---------- */
 
-.deck-hero {
+.deck-hero,
+.summary-hero {
   display: flex;
   align-items: center;
   gap: 18px;
@@ -446,20 +447,54 @@ a.entity-title:hover {
   box-shadow: var(--shadow);
   margin-bottom: 22px;
 }
-.deck-hero-main {
+.deck-hero-main,
+.summary-hero-main {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 9px;
 }
-.deck-hero-main h1 {
+.deck-hero-main h1,
+.summary-hero-main h1 {
   font-size: 24px;
+}
+
+/* ---------- Karten-Steuerleiste (Suche/Sort/Filter) ---------- */
+
+.card-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.card-search {
+  flex: 1;
+  min-width: 160px;
+}
+.control-select {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.control-select select {
+  width: auto;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.card-controls-reset {
+  padding: 7px 12px;
+  font-size: 13px;
 }
 
 /* ---------- Flashcard-Zeilen ---------- */
 
 .flashcard-row {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -488,12 +523,82 @@ a.entity-title:hover {
   margin-top: 2px;
 }
 
+/* ---------- Confidence-Seitenlinie + Hover-Score ---------- */
+
+.card-confidence {
+  align-self: stretch;
+  flex-shrink: 0;
+  display: flex;
+  align-items: stretch;
+}
+.confidence-bar {
+  display: flex;
+  flex-direction: column;
+  width: 5px;
+  border-radius: 3px;
+  overflow: hidden;
+  min-height: 34px;
+}
+.confidence-segment {
+  flex: 1;
+}
+.confidence-popover {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translate(-8px, -50%);
+  z-index: 5;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-hover);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s, transform 0.12s;
+}
+.flashcard-row:hover .confidence-popover {
+  opacity: 1;
+  transform: translate(-100%, -50%);
+}
+.confidence-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 13px;
+  color: var(--text);
+}
+.confidence-arrow {
+  width: 14px;
+  color: var(--text-muted);
+  font-weight: 700;
+}
+.confidence-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.confidence-level {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 @media (max-width: 560px) {
-  .deck-hero {
+  .deck-hero,
+  .summary-hero {
     flex-wrap: wrap;
   }
   .flashcard-row {
     flex-wrap: wrap;
+  }
+  /* Auf schmalen Fenstern das absolute Panel unterdrücken (Titeltext/Farbe genügt). */
+  .confidence-popover {
+    display: none;
   }
 }
 

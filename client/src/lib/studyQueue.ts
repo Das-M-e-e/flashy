@@ -31,63 +31,79 @@ function level(item: StudyItem): number {
   return Math.max(0, item.correctCount - item.incorrectCount);
 }
 
-function weight(item: StudyItem): number {
-  return 1 / (level(item) + 1);
+// Fibonacci-artige Staffelung: je höher das Level, desto weiter rückt eine
+// richtig beantwortete Karte nach hinten.
+const STEP = [1, 2, 3, 5, 8, 13, 21];
+
+function jitter(base: number): number {
+  return Math.max(1, Math.round(base * (0.8 + Math.random() * 0.4)));
 }
 
 function itemKey(item: StudyItem): string {
   return `${item.cardId}:${item.direction}`;
 }
 
+interface Entry {
+  item: StudyItem;
+  due: number;
+}
+
 /**
- * Zieht Lern-Items gewichtet nach Erfolgsbilanz (correctCount - incorrectCount):
- * Karten mit hohem Wert erscheinen seltener, aber nie ganz ausgeschlossen.
+ * Fälligkeitsbasierte Warteschlange statt gewichtetem Zufall.
+ *
+ * Jedes Lern-Item hat eine virtuelle Fälligkeitsposition `due` auf einer
+ * fortlaufenden Uhr. `next()` liefert stets das überfälligste Item. Nach der
+ * Antwort wird es um einen Abstand nach hinten einsortiert, der bei richtigen
+ * Antworten mit dem Level wächst und bei falschen klein bleibt. So kommen
+ * schwache Karten häufig, gut gekonnte erst viel später wieder — ohne dass eine
+ * Karte je ganz herausfällt oder sich direkt wiederholt.
  */
 export class StudyQueue {
-  private items: StudyItem[];
-  private lastDrawnAt = new Map<string, number>();
-  private drawCount = 0;
+  private entries: Entry[];
+  private clock = 0;
+  private lastKey: string | null = null;
 
   constructor(items: StudyItem[]) {
-    this.items = items;
+    // Neue Karten (Level 0) zuerst; gut gekonnte weiter hinten. Kleiner
+    // Zufalls-Tiebreak, damit gleichrangige Items nicht in fixer Reihenfolge kommen.
+    this.entries = items.map((item) => ({ item, due: level(item) + Math.random() * 0.5 }));
   }
 
   get size(): number {
-    return this.items.length;
-  }
-
-  updateItem(cardId: string, direction: Direction, correct: boolean): void {
-    const item = this.items.find((it) => it.cardId === cardId && it.direction === direction);
-    if (!item) return;
-    if (correct) item.correctCount += 1;
-    else item.incorrectCount += 1;
+    return this.entries.length;
   }
 
   next(): StudyItem | null {
-    if (this.items.length === 0) return null;
-    if (this.items.length === 1) return this.items[0];
+    if (this.entries.length === 0) return null;
+    if (this.entries.length === 1) return this.entries[0].item;
 
-    const eligible = this.items.filter((item) => {
-      const last = this.lastDrawnAt.get(itemKey(item));
-      if (last === undefined) return true;
-      const requiredGap = Math.min(this.items.length - 1, level(item) + 2);
-      return this.drawCount - last > requiredGap;
-    });
-
-    const pool = eligible.length > 0 ? eligible : this.items;
-    const totalWeight = pool.reduce((sum, item) => sum + weight(item), 0);
-    let roll = Math.random() * totalWeight;
-    let chosen = pool[pool.length - 1];
-    for (const item of pool) {
-      roll -= weight(item);
-      if (roll <= 0) {
-        chosen = item;
-        break;
-      }
+    let chosen: Entry | null = null;
+    for (const entry of this.entries) {
+      // Dieselbe Karte nie zweimal direkt hintereinander (Kernärger der alten Logik).
+      if (itemKey(entry.item) === this.lastKey) continue;
+      if (!chosen || entry.due < chosen.due) chosen = entry;
     }
+    // Fallback (sollte bei ≥2 Items nicht eintreten): erstes Item nehmen.
+    if (!chosen) chosen = this.entries[0];
+    return chosen.item;
+  }
 
-    this.lastDrawnAt.set(itemKey(chosen), this.drawCount);
-    this.drawCount += 1;
-    return chosen;
+  updateItem(cardId: string, direction: Direction, correct: boolean): void {
+    const entry = this.entries.find(
+      (e) => e.item.cardId === cardId && e.item.direction === direction
+    );
+    if (!entry) return;
+
+    if (correct) entry.item.correctCount += 1;
+    else entry.item.incorrectCount += 1;
+
+    const lvl = level(entry.item);
+    let gap = correct ? jitter(STEP[Math.min(lvl, STEP.length - 1)]) : jitter(2);
+    // Bei genügend Items nie direkt wieder vorne einsortieren.
+    if (this.entries.length >= 3) gap = Math.max(gap, 2);
+
+    entry.due = this.clock + gap;
+    this.clock += 1;
+    this.lastKey = itemKey(entry.item);
   }
 }

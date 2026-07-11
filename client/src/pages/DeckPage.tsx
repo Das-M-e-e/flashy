@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api";
 import Avatar from "../components/Avatar";
+import CardConfidence from "../components/CardConfidence";
+import CardControls, { DEFAULT_FILTER, useFilteredCards, type CardFilterState } from "../components/CardControls";
 import CardEditorModal from "../components/CardEditorModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
@@ -23,6 +25,9 @@ export default function DeckPage() {
   const [error, setError] = useState<string | null>(null);
   const [editingCard, setEditingCard] = useState<Card | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Card | null>(null);
+  const [filter, setFilter] = useState<CardFilterState>(DEFAULT_FILTER);
+
+  const visibleCards = useFilteredCards(cards, filter);
 
   async function load() {
     if (!deckId) return;
@@ -153,31 +158,39 @@ export default function DeckPage() {
       {cards.length === 0 ? (
         <div className="empty-state">{t("deck.empty")}</div>
       ) : (
-        <div className="list">
-          {cards.map((card) => (
-            <div className="flashcard-row" key={card.id}>
-              <div className="flashcard-text">
-                <div className="flashcard-front">
-                  {hasImage(card.front) && <span className="image-mark" title={t("card.hasImage")} />}
-                  {plainExcerpt(card.front)}
+        <>
+          <CardControls value={filter} onChange={setFilter} />
+          {visibleCards.length === 0 ? (
+            <div className="empty-state">{t("cards.noMatches")}</div>
+          ) : (
+            <div className="list">
+              {visibleCards.map((card) => (
+                <div className="flashcard-row" key={card.id}>
+                  <CardConfidence card={card} />
+                  <div className="flashcard-text">
+                    <div className="flashcard-front">
+                      {hasImage(card.front) && <span className="image-mark" title={t("card.hasImage")} />}
+                      {plainExcerpt(card.front)}
+                    </div>
+                    <div className="flashcard-back">
+                      {hasImage(card.back) && <span className="image-mark" title={t("card.hasImage")} />}
+                      {plainExcerpt(card.back)}
+                    </div>
+                  </div>
+                  <span className={card.bidirectional ? "badge bi" : "badge"}>
+                    {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
+                  </span>
+                  <div className="entity-actions">
+                    <button onClick={() => setEditingCard(card)}>{t("common.edit")}</button>
+                    <button className="danger" onClick={() => setDeleteTarget(card)}>
+                      {t("common.delete")}
+                    </button>
+                  </div>
                 </div>
-                <div className="flashcard-back">
-                  {hasImage(card.back) && <span className="image-mark" title={t("card.hasImage")} />}
-                  {plainExcerpt(card.back)}
-                </div>
-              </div>
-              <span className={card.bidirectional ? "badge bi" : "badge"}>
-                {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
-              </span>
-              <div className="entity-actions">
-                <button onClick={() => setEditingCard(card)}>{t("common.edit")}</button>
-                <button className="danger" onClick={() => setDeleteTarget(card)}>
-                  {t("common.delete")}
-                </button>
-              </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {editingCard && (

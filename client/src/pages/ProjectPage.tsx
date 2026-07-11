@@ -7,7 +7,7 @@ import DistributionBar from "../components/DistributionBar";
 import NameDialog from "../components/NameDialog";
 import ProgressRing from "../components/ProgressRing";
 import { useLocale } from "../i18n";
-import type { Deck, DeckStats, Project } from "../types";
+import type { Deck, DeckStats, Project, ProjectStats } from "../types";
 
 const EMPTY_BUCKETS = { new: 0, learning: 0, known: 0, mastered: 0 };
 
@@ -19,6 +19,7 @@ export default function ProjectPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [decks, setDecks] = useState<Deck[]>([]);
   const [stats, setStats] = useState<Record<string, DeckStats>>({});
+  const [projectStats, setProjectStats] = useState<ProjectStats | undefined>();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -29,9 +30,14 @@ export default function ProjectPage() {
     if (!projectId) return;
     setLoading(true);
     try {
-      const [projects, deckList] = await Promise.all([api.listProjects(), api.listDecks(projectId)]);
+      const [projects, deckList, projStats] = await Promise.all([
+        api.listProjects(),
+        api.listDecks(projectId),
+        api.projectStats(projectId),
+      ]);
       setProject(projects.find((p) => p.id === projectId) ?? null);
       setDecks(deckList);
+      setProjectStats(projStats);
       const statEntries = await Promise.all(
         deckList.map(async (deck) => [deck.id, await api.deckStats(deck.id)] as const)
       );
@@ -109,9 +115,37 @@ export default function ProjectPage() {
       <div className="breadcrumb">
         <Link to="/">{t("nav.projects")}</Link>
       </div>
-      <div className="topbar">
-        <Avatar name={project.name} size={40} />
-        <h1>{project.name}</h1>
+      <div className="summary-hero">
+        <Avatar name={project.name} size={52} />
+        <div className="summary-hero-main">
+          <h1>{project.name}</h1>
+          {projectStats && projectStats.itemCount > 0 ? (
+            <>
+              <div className="mastery-caption">
+                {t("mastery.secure", { percent: projectStats.masteryPercent })} ·{" "}
+                {t(`mastery.${projectStats.masteryLabel}`)} ·{" "}
+                {projectStats.deckCount === 1
+                  ? t("stats.decks.one")
+                  : t("stats.decks", { count: projectStats.deckCount })}{" "}
+                ·{" "}
+                {projectStats.itemCount === 1
+                  ? t("stats.cards.one")
+                  : t("stats.cards", { count: projectStats.itemCount })}
+              </div>
+              <DistributionBar buckets={projectStats.buckets} showLegend />
+            </>
+          ) : (
+            <div className="mastery-caption">{t("mastery.empty")}</div>
+          )}
+        </div>
+        <div className="entity-viz">
+          <ProgressRing
+            percent={projectStats?.masteryPercent ?? 0}
+            size={72}
+            stroke={8}
+            empty={!projectStats || projectStats.itemCount === 0}
+          />
+        </div>
       </div>
       {error && <div className="error-banner">{error}</div>}
 
