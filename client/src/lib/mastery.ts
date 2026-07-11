@@ -17,10 +17,17 @@ export function bucketOfLevel(level: number): Bucket {
   return "mastered";
 }
 
+/** Gleiche Skala wie die Deck-/Projekt-Mastery (Cap 5): 0/20/40/60/80/100 %. */
+export const MASTERY_CAP = 5;
+export function confidencePercent(level: number): number {
+  return Math.round((Math.min(level, MASTERY_CAP) / MASTERY_CAP) * 100);
+}
+
 export interface DirectionConfidence {
   direction: Direction;
   level: number;
   bucket: Bucket;
+  percent: number;
 }
 
 export interface CardConfidenceInfo {
@@ -37,7 +44,7 @@ export function cardConfidence(card: Card): CardConfidenceInfo {
   );
   const directions: DirectionConfidence[] = ordered.map((stat) => {
     const level = levelOfStat(stat);
-    return { direction: stat.direction, level, bucket: bucketOfLevel(level) };
+    return { direction: stat.direction, level, bucket: bucketOfLevel(level), percent: confidencePercent(level) };
   });
   const minLevel = directions.length
     ? Math.min(...directions.map((d) => d.level))

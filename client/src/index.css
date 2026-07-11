@@ -542,50 +542,55 @@ a.entity-title:hover {
 .confidence-segment {
   flex: 1;
 }
-.confidence-popover {
+/* Tacho-Overlay: erscheint beim Hovern über der Kartenzeile, transparent und
+   randlos. Beim Verlassen bleibt es dank transition-delay noch ~0,5 s stehen. */
+.confidence-gauges {
   position: absolute;
-  left: 0;
+  left: 14px;
   top: 50%;
-  transform: translate(-8px, -50%);
+  transform: translateY(-50%);
   z-index: 5;
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-hover);
-  padding: 8px 10px;
+  display: flex;
+  gap: 14px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease 0.5s;
+}
+.flashcard-row:hover .confidence-gauges {
+  opacity: 1;
+  transition: opacity 0.2s ease 0s;
+}
+
+/* Karteninhalt tritt beim Hovern zurück, damit der Tacho gut lesbar ist. */
+.flashcard-text {
+  transition: opacity 0.2s ease 0.5s;
+}
+.flashcard-row:hover .flashcard-text {
+  opacity: 0.12;
+  transition: opacity 0.2s ease 0s;
+}
+
+.conf-gauge {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s, transform 0.12s;
-}
-.flashcard-row:hover .confidence-popover {
-  opacity: 1;
-  transform: translate(-100%, -50%);
-}
-.confidence-line {
-  display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 13px;
-  color: var(--text);
+  gap: 2px;
 }
-.confidence-arrow {
-  width: 14px;
+.conf-gauge-arrow {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1;
   color: var(--text-muted);
+}
+.conf-gauge-value {
+  fill: var(--text);
+  font-size: 13px;
   font-weight: 700;
 }
-.confidence-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 3px;
-  flex-shrink: 0;
-}
-.confidence-level {
+.conf-gauge-label {
+  font-size: 11px;
   color: var(--text-muted);
-  font-size: 12px;
+  white-space: nowrap;
 }
 
 @media (max-width: 560px) {
@@ -596,9 +601,12 @@ a.entity-title:hover {
   .flashcard-row {
     flex-wrap: wrap;
   }
-  /* Auf schmalen Fenstern das absolute Panel unterdrücken (Titeltext/Farbe genügt). */
-  .confidence-popover {
+  /* Auf schmalen Fenstern kein Overlay -- die Seitenlinien-Farbe genügt. */
+  .confidence-gauges {
     display: none;
+  }
+  .flashcard-row:hover .flashcard-text {
+    opacity: 1;
   }
 }
 

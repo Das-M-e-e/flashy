@@ -1,16 +1,15 @@
-import { useLocale } from "../i18n";
 import { cardConfidence } from "../lib/mastery";
 import type { Card } from "../types";
+import ConfidenceGauge from "./ConfidenceGauge";
 
 const ARROW: Record<string, string> = { forward: "→", backward: "←" };
 
 /**
  * Farbige Seitenlinie links an einer Karte, die die Confidence-Stufe zeigt.
- * Bidirektionale Karten haben zwei Segmente (je Richtung). Beim Hovern über
- * die Zeile blendet ein kleines Panel die Scores ein (rein per CSS).
+ * Beim Hovern über die Zeile erscheint pro Richtung ein Tacho mit Prozentwert
+ * und Stufe (transparent, ohne Rahmen; bidirektionale Karten zeigen zwei).
  */
 export default function CardConfidence({ card }: { card: Card }) {
-  const { t } = useLocale();
   const { directions } = cardConfidence(card);
 
   return (
@@ -20,14 +19,14 @@ export default function CardConfidence({ card }: { card: Card }) {
           <span key={d.direction} className="confidence-segment" style={{ background: `var(--bucket-${d.bucket})` }} />
         ))}
       </div>
-      <div className="confidence-popover" role="tooltip">
+      <div className="confidence-gauges" role="tooltip">
         {directions.map((d) => (
-          <div key={d.direction} className="confidence-line">
-            {card.bidirectional && <span className="confidence-arrow">{ARROW[d.direction]}</span>}
-            <span className="confidence-dot" style={{ background: `var(--bucket-${d.bucket})` }} />
-            <span>{t(`bucket.${d.bucket}`)}</span>
-            <span className="confidence-level">{t("confidence.level", { n: d.level })}</span>
-          </div>
+          <ConfidenceGauge
+            key={d.direction}
+            percent={d.percent}
+            bucket={d.bucket}
+            arrow={card.bidirectional ? ARROW[d.direction] : undefined}
+          />
         ))}
       </div>
     </div>
