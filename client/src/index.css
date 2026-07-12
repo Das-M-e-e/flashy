@@ -542,11 +542,13 @@ a.entity-title:hover {
 .confidence-segment {
   flex: 1;
 }
-/* Tacho-Overlay: erscheint beim Hovern über der Kartenzeile, transparent und
-   randlos. Beim Verlassen bleibt es dank transition-delay noch ~0,5 s stehen. */
+/* Tacho-Overlay: erscheint beim Hovern links NEBEN der Karte (im freien Rand),
+   transparent und randlos. Beim Verlassen bleibt es dank transition-delay noch
+   ~0,5 s stehen. */
 .confidence-gauges {
   position: absolute;
-  left: 14px;
+  right: 100%;
+  margin-right: 16px;
   top: 50%;
   transform: translateY(-50%);
   z-index: 5;
@@ -558,15 +560,6 @@ a.entity-title:hover {
 }
 .flashcard-row:hover .confidence-gauges {
   opacity: 1;
-  transition: opacity 0.2s ease 0s;
-}
-
-/* Karteninhalt tritt beim Hovern zurück, damit der Tacho gut lesbar ist. */
-.flashcard-text {
-  transition: opacity 0.2s ease 0.5s;
-}
-.flashcard-row:hover .flashcard-text {
-  opacity: 0.12;
   transition: opacity 0.2s ease 0s;
 }
 
@@ -593,6 +586,14 @@ a.entity-title:hover {
   white-space: nowrap;
 }
 
+/* Reicht der Rand links neben der Karte nicht mehr, wird der Tacho ausgeblendet
+   (statt aus dem Bild zu ragen); die Seitenlinien-Farbe bleibt als Indikator. */
+@media (max-width: 1140px) {
+  .confidence-gauges {
+    display: none;
+  }
+}
+
 @media (max-width: 560px) {
   .deck-hero,
   .summary-hero {
@@ -600,13 +601,6 @@ a.entity-title:hover {
   }
   .flashcard-row {
     flex-wrap: wrap;
-  }
-  /* Auf schmalen Fenstern kein Overlay -- die Seitenlinien-Farbe genügt. */
-  .confidence-gauges {
-    display: none;
-  }
-  .flashcard-row:hover .flashcard-text {
-    opacity: 1;
   }
 }
 
