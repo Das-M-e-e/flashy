@@ -3,6 +3,25 @@ export function hasImage(md: string): boolean {
   return /!\[[^\]]*\]\([^)]*\)/.test(md);
 }
 
+const CLOZE_RE = /\{\{c\d+::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
+
+/**
+ * Wandelt Anki-Cloze-Syntax `{{cN::Antwort::Hinweis}}` in zwei Markdown-Varianten:
+ * `masked` (Lücken verdeckt, ggf. Hinweis) und `revealed` (Antworten hervorgehoben).
+ */
+export function renderCloze(text: string): { masked: string; revealed: string } {
+  const masked = text.replace(CLOZE_RE, (_all, _answer: string, hint?: string) =>
+    hint ? `**[${hint.trim()}]**` : "**[ … ]**"
+  );
+  const revealed = text.replace(CLOZE_RE, (_all, answer: string) => `**${answer.trim()}**`);
+  return { masked, revealed };
+}
+
+/** Plain-Text einer Cloze-Karte (Lücken durch ihre Antwort ersetzt) für Auszüge. */
+export function clozeToPlain(text: string): string {
+  return text.replace(CLOZE_RE, (_all, answer: string) => answer.trim());
+}
+
 /**
  * Einzeiliger Klartext-Auszug für Listenansichten: entfernt Markdown-Syntax,
  * damit dort keine rohen Sonderzeichen oder riesige data-URIs auftauchen.

@@ -621,6 +621,11 @@ a.entity-title:hover {
   border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
   background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 }
+.badge.type {
+  color: var(--bucket-known);
+  border-color: color-mix(in srgb, var(--bucket-known) 35%, var(--border));
+  background: color-mix(in srgb, var(--bucket-known) 8%, var(--surface));
+}
 
 /* ---------- Modals ---------- */
 
@@ -935,6 +940,99 @@ input[type="password"] {
   font-size: 16px;
 }
 
+/* ---------- Study: Kartentyp-spezifisch ---------- */
+
+.study-input {
+  width: 100%;
+  padding: 14px 16px;
+  font-size: 17px;
+  margin-bottom: 14px;
+}
+
+.study-verdict {
+  text-align: center;
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.study-verdict.ok {
+  color: var(--bucket-mastered);
+}
+.study-verdict.bad {
+  color: var(--danger);
+}
+
+.study-expected {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.study-expected-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.study-your-answer {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.choice-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.choice-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 16px;
+  font-weight: 500;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+}
+.choice-option .markdown {
+  flex: 1;
+}
+.choice-option .markdown p {
+  margin: 0;
+}
+.choice-marker {
+  font-size: 18px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.choice-option.selected {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 20%, transparent);
+}
+.choice-option.correct {
+  border-color: var(--bucket-mastered);
+  background: color-mix(in srgb, var(--bucket-mastered) 12%, var(--surface));
+}
+.choice-option.correct .choice-marker {
+  color: var(--bucket-mastered);
+}
+.choice-option.wrong {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+}
+.choice-option.wrong .choice-marker {
+  color: var(--danger);
+}
+
 /* ---------- Markdown ---------- */
 
 .markdown > *:first-child {
@@ -1125,6 +1223,47 @@ input[type="password"] {
 .md-field-hint {
   font-size: 12px;
   color: var(--text-muted);
+}
+
+/* ---------- Karten-Editor: Multiple Choice / Wahr-Falsch ---------- */
+
+.choice-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.choice-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.choice-row input[type="text"] {
+  flex: 1;
+}
+.choice-row input[type="radio"],
+.choice-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--bucket-mastered);
+  flex-shrink: 0;
+}
+.choice-row button.danger {
+  padding: 6px 10px;
+  line-height: 1;
+}
+.choice-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.truefalse-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.truefalse-editor .md-tabs {
+  align-self: flex-start;
 }
 
 /* Bild-Symbol in der Kartenliste */

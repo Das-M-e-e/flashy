@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../api";
-import Markdown from "../components/Markdown";
+import StudyCard from "../components/study/StudyCard";
 import { useLocale } from "../i18n";
-import { isRichContent } from "../lib/markdown";
 import { cardToStudyItems, StudyQueue, type StudyItem } from "../lib/studyQueue";
 import type { Card } from "../types";
 
@@ -20,7 +19,6 @@ export default function StudyPage({ mode }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [queue, setQueue] = useState<StudyQueue | null>(null);
   const [current, setCurrent] = useState<StudyItem | null>(null);
-  const [flipped, setFlipped] = useState(false);
   const [answered, setAnswered] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
 
@@ -60,7 +58,6 @@ export default function StudyPage({ mode }: Props) {
     queue.updateItem(current.cardId, current.direction, correct);
     setAnswered((n) => n + 1);
     if (correct) setCorrectCount((n) => n + 1);
-    setFlipped(false);
     setCurrent(queue.next());
   }
 
@@ -91,40 +88,11 @@ export default function StudyPage({ mode }: Props) {
           </div>
 
           {current && (
-            <>
-              {(() => {
-                const text = flipped ? current.back : current.front;
-                const rich = isRichContent(text);
-                return (
-                  <div
-                    className={`study-card ${rich ? "study-card-rich" : ""}`}
-                    onClick={() => setFlipped((f) => !f)}
-                  >
-                    <div className="study-card-body">
-                      <Markdown>{text}</Markdown>
-                      <div className="study-card-hint">{flipped ? "" : t("study.clickToFlip")}</div>
-                    </div>
-                  </div>
-                );
-              })()}
-
-              {flipped ? (
-                <div className="study-answer-row">
-                  <button className="danger" onClick={() => handleAnswer(false)}>
-                    {t("study.wrongBtn")}
-                  </button>
-                  <button className="primary" onClick={() => handleAnswer(true)}>
-                    {t("study.correctBtn")}
-                  </button>
-                </div>
-              ) : (
-                <div className="study-answer-row">
-                  <button className="primary" onClick={() => setFlipped(true)}>
-                    {t("study.flip")}
-                  </button>
-                </div>
-              )}
-            </>
+            <StudyCard
+              key={`${current.cardId}:${current.direction}:${answered}`}
+              item={current}
+              onAnswer={handleAnswer}
+            />
           )}
 
           <div className="toolbar" style={{ marginTop: 24, justifyContent: "center" }}>

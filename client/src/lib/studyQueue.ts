@@ -1,9 +1,11 @@
-import type { Card, Direction } from "../types";
+import type { Card, CardData, CardType, Direction } from "../types";
 
 export interface StudyItem {
   cardId: string;
   deckId: string;
   direction: Direction;
+  type: CardType;
+  data: CardData | null;
   front: string;
   back: string;
   correctCount: number;
@@ -18,6 +20,8 @@ export function cardToStudyItems(card: Card): StudyItem[] {
       cardId: card.id,
       deckId: card.deckId,
       direction: stat.direction,
+      type: card.type,
+      data: card.data,
       front: isForward ? card.front : card.back,
       back: isForward ? card.back : card.front,
       correctCount: stat.correctCount,

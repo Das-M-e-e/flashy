@@ -7,12 +7,21 @@ interface Props {
   label: string;
   value: string;
   autoFocus?: boolean;
+  /** Zeigt zusätzlich einen "Lücke einfügen"-Button (für Cloze-Karten). */
+  enableCloze?: boolean;
   onChange: (value: string) => void;
   onError: (message: string) => void;
 }
 
+/** Nächste freie Cloze-Nummer im Text (c1, c2, …). */
+function nextClozeIndex(text: string): number {
+  let max = 0;
+  for (const m of text.matchAll(/\{\{c(\d+)::/g)) max = Math.max(max, Number(m[1]));
+  return max + 1;
+}
+
 /** Textfeld mit Umschalter "Bearbeiten | Vorschau" und Bild-/Audio-Einbindung. */
-export default function MarkdownField({ label, value, autoFocus, onChange, onError }: Props) {
+export default function MarkdownField({ label, value, autoFocus, enableCloze, onChange, onError }: Props) {
   const { t } = useLocale();
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -54,6 +63,19 @@ export default function MarkdownField({ label, value, autoFocus, onChange, onErr
     if (audioInputRef.current) audioInputRef.current.value = "";
   }
 
+  function insertCloze() {
+    const textarea = textareaRef.current;
+    const n = nextClozeIndex(value);
+    if (!textarea) {
+      onChange(`${value}{{c${n}::}}`);
+      return;
+    }
+    const { selectionStart, selectionEnd } = textarea;
+    const selected = value.slice(selectionStart, selectionEnd);
+    const snippet = `{{c${n}::${selected}}}`;
+    onChange(value.slice(0, selectionStart) + snippet + value.slice(selectionEnd));
+  }
+
   return (
     <div className="md-field">
       <div className="md-field-head">
@@ -82,13 +104,18 @@ export default function MarkdownField({ label, value, autoFocus, onChange, onErr
             onPaste={handlePaste}
           />
           <div className="md-field-actions">
+            {enableCloze && (
+              <button type="button" onClick={insertCloze}>
+                {t("card.insertCloze")}
+              </button>
+            )}
             <button type="button" onClick={() => imageInputRef.current?.click()} disabled={busy}>
               {busy ? t("card.imageWorking") : t("card.insertImage")}
             </button>
             <button type="button" onClick={() => audioInputRef.current?.click()} disabled={busy}>
               {t("card.insertAudio")}
             </button>
-            <span className="md-field-hint">{t("card.markdownHint")}</span>
+            <span className="md-field-hint">{enableCloze ? t("card.clozeHint") : t("card.markdownHint")}</span>
             <input
               type="file"
               accept="image/*"

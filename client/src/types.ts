@@ -19,15 +19,39 @@ export interface CardStat {
   incorrectCount: number;
 }
 
+export type CardType = "basic" | "type_answer" | "choice" | "truefalse" | "cloze";
+
+export interface ChoiceOption {
+  text: string;
+  correct: boolean;
+}
+
+export interface CardData {
+  options?: ChoiceOption[];
+  multi?: boolean;
+  answers?: string[];
+  answer?: boolean;
+}
+
 export interface Card {
   id: string;
   deckId: string;
   front: string;
   back: string;
   bidirectional: boolean;
+  type: CardType;
+  data: CardData | null;
   createdAt: string;
   updatedAt: string;
   stats: CardStat[];
+}
+
+export interface CardInput {
+  front: string;
+  back: string;
+  bidirectional: boolean;
+  type: CardType;
+  data?: CardData | null;
 }
 
 export type MasteryLevel = "empty" | "weak" | "moderate" | "good" | "excellent";

@@ -1,5 +1,6 @@
 import type {
   Card,
+  CardInput,
   Deck,
   DeckStats,
   Direction,
@@ -55,15 +56,15 @@ export const api = {
   },
 
   listCards: (deckId: string) => request<Card[]>(`/api/decks/${deckId}/cards`),
-  createCard: (deckId: string, front: string, back: string, bidirectional: boolean) =>
+  createCard: (deckId: string, input: CardInput) =>
     request<Card>(`/api/decks/${deckId}/cards`, {
       method: "POST",
-      body: JSON.stringify({ front, back, bidirectional }),
+      body: JSON.stringify(input),
     }),
-  updateCard: (id: string, front: string, back: string, bidirectional: boolean) =>
+  updateCard: (id: string, input: CardInput) =>
     request<Card>(`/api/cards/${id}`, {
       method: "PUT",
-      body: JSON.stringify({ front, back, bidirectional }),
+      body: JSON.stringify(input),
     }),
   deleteCard: (id: string) => request<void>(`/api/cards/${id}`, { method: "DELETE" }),
   answerCard: (id: string, direction: Direction, correct: boolean) =>

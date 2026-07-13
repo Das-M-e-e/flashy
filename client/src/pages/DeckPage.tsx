@@ -9,8 +9,8 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
 import ProgressRing from "../components/ProgressRing";
 import { useLocale } from "../i18n";
-import { hasImage, plainExcerpt } from "../lib/markdown";
-import type { Card, Deck, DeckStats } from "../types";
+import { clozeToPlain, hasImage, plainExcerpt } from "../lib/markdown";
+import type { Card, CardInput, Deck, DeckStats } from "../types";
 
 export default function DeckPage() {
   const { t } = useLocale();
@@ -53,13 +53,13 @@ export default function DeckPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckId]);
 
-  async function handleSaveCard(front: string, back: string, bidirectional: boolean) {
+  async function handleSaveCard(input: CardInput) {
     if (!deckId) return;
     if (editingCard === "new") {
-      const card = await api.createCard(deckId, front, back, bidirectional);
+      const card = await api.createCard(deckId, input);
       setCards((prev) => [...prev, card]);
     } else if (editingCard) {
-      const card = await api.updateCard(editingCard.id, front, back, bidirectional);
+      const card = await api.updateCard(editingCard.id, input);
       setCards((prev) => prev.map((c) => (c.id === card.id ? card : c)));
     }
     setEditingCard(null);
@@ -89,6 +89,21 @@ export default function DeckPage() {
       setError(err instanceof Error ? err.message : t("error.import"));
     } finally {
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
+  /** Kurzfassung der "Antwort"-Seite je Kartentyp für die Listenansicht. */
+  function cardBackExcerpt(card: Card): string {
+    switch (card.type) {
+      case "choice":
+        return (card.data?.options ?? [])
+          .filter((o) => o.correct)
+          .map((o) => o.text)
+          .join(", ");
+      case "truefalse":
+        return card.data?.answer ? t("card.trueLabel") : t("card.falseLabel");
+      default:
+        return plainExcerpt(card.back);
     }
   }
 
@@ -170,16 +185,20 @@ export default function DeckPage() {
                   <div className="flashcard-text">
                     <div className="flashcard-front">
                       {hasImage(card.front) && <span className="image-mark" title={t("card.hasImage")} />}
-                      {plainExcerpt(card.front)}
+                      {plainExcerpt(card.type === "cloze" ? clozeToPlain(card.front) : card.front)}
                     </div>
                     <div className="flashcard-back">
                       {hasImage(card.back) && <span className="image-mark" title={t("card.hasImage")} />}
-                      {plainExcerpt(card.back)}
+                      {cardBackExcerpt(card)}
                     </div>
                   </div>
-                  <span className={card.bidirectional ? "badge bi" : "badge"}>
-                    {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
-                  </span>
+                  {card.type === "basic" ? (
+                    <span className={card.bidirectional ? "badge bi" : "badge"}>
+                      {card.bidirectional ? t("card.bidirectional") : t("card.oneway")}
+                    </span>
+                  ) : (
+                    <span className="badge type">{t(`card.type.${card.type}`)}</span>
+                  )}
                   <div className="entity-actions">
                     <button onClick={() => setEditingCard(card)}>{t("common.edit")}</button>
                     <button className="danger" onClick={() => setDeleteTarget(card)}>
