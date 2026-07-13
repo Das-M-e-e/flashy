@@ -2,16 +2,23 @@ import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /**
- * Erlaubt zusätzlich eingebettete Bilder als data-URI. Die Voreinstellung von
- * react-markdown verwirft `data:` komplett -- eingebettete Bilder blieben sonst
- * unsichtbar. Andere data-Typen (z.B. text/html) bleiben verworfen.
+ * Mappt inhaltsadressierte Medien-Referenzen `media/<hash>.<ext>` auf den lokalen
+ * Endpunkt und erlaubt weiterhin eingebettete data-URIs (Altbestand). Andere
+ * data-Typen (z.B. text/html) bleiben verworfen.
  */
 function urlTransform(url: string): string {
-  if (/^data:image\/(png|jpeg|jpg|gif|webp|avif);base64,/i.test(url)) return url;
+  if (/^media\/[a-f0-9]{64}\.[a-z0-9]+$/i.test(url)) return `/api/${url}`;
+  if (/^data:(image|audio)\/[\w.+-]+;base64,/i.test(url)) return url;
   return defaultUrlTransform(url);
 }
 
-/** Verhindert, dass ein Klick auf Link/Bild/Code die Lernkarte umdreht. */
+const AUDIO_RE = /\.(mp3|m4a|aac|ogg|wav|weba|opus)$/i;
+function isAudio(src?: string): boolean {
+  if (!src) return false;
+  return AUDIO_RE.test(src) || /^data:audio\//i.test(src);
+}
+
+/** Verhindert, dass ein Klick auf Link/Bild/Audio/Code die Lernkarte umdreht. */
 function stopFlip(e: React.MouseEvent): void {
   e.stopPropagation();
 }
@@ -35,7 +42,13 @@ export default function Markdown({ children, className }: Props) {
           a: ({ node: _node, ...props }) => (
             <a {...props} target="_blank" rel="noopener noreferrer" onClick={stopFlip} />
           ),
-          img: ({ node: _node, ...props }) => <img {...props} loading="lazy" onClick={stopFlip} />,
+          img: ({ node: _node, ...props }) =>
+            // Eine Medien-Referenz mit Audio-Endung wird als Player statt Bild gerendert.
+            isAudio(props.src) ? (
+              <audio controls src={props.src} onClick={stopFlip} className="md-audio" />
+            ) : (
+              <img {...props} loading="lazy" onClick={stopFlip} />
+            ),
           pre: ({ node: _node, ...props }) => <pre {...props} onClick={stopFlip} />,
         }}
       >

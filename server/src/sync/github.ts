@@ -212,3 +212,69 @@ export async function putFile(
   const body = (await res.json()) as { content: { sha: string } };
   return body.content.sha;
 }
+
+// ---------- Medien (binär, inhaltsadressiert) ----------
+
+export interface DirEntry {
+  name: string;
+  sha: string;
+}
+
+/** Listet ein Verzeichnis; leeres Array, falls es (noch) nicht existiert. */
+export async function listDir(
+  token: string,
+  owner: string,
+  repo: string,
+  dir: string,
+  branch: string
+): Promise<DirEntry[]> {
+  const res = await request(
+    token,
+    `/repos/${owner}/${repo}/contents/${encodeURIComponent(dir)}?ref=${encodeURIComponent(branch)}`
+  );
+  if (res.status === 404) return [];
+  if (!res.ok) throw await errorFrom(res);
+  const body = await res.json();
+  if (!Array.isArray(body)) return [];
+  return (body as { name: string; sha: string }[]).map((e) => ({ name: e.name, sha: e.sha }));
+}
+
+/** Lädt eine (auch große) Datei als Rohbytes. */
+export async function getRawBytes(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string
+): Promise<Buffer | typeof NOT_FOUND> {
+  const res = await request(
+    token,
+    `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}?ref=${encodeURIComponent(branch)}`,
+    { headers: { Accept: "application/vnd.github.raw" } }
+  );
+  if (res.status === 404) return NOT_FOUND;
+  if (!res.ok) throw await errorFrom(res);
+  return Buffer.from(await res.arrayBuffer());
+}
+
+/**
+ * Legt eine binäre Datei an. Medien sind unveränderlich -- existiert die Datei
+ * schon (422/409), gilt das als Erfolg (kein Überschreiben nötig).
+ */
+export async function putBinaryFile(
+  token: string,
+  owner: string,
+  repo: string,
+  path: string,
+  branch: string,
+  bytes: Buffer,
+  message: string
+): Promise<void> {
+  const res = await request(token, `/repos/${owner}/${repo}/contents/${encodeURIComponent(path)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ message, content: bytes.toString("base64"), branch }),
+  });
+  if (res.status === 409 || res.status === 422) return; // existiert bereits -> ok
+  if (!res.ok) throw await errorFrom(res);
+}

@@ -1,10 +1,13 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
   Card,
+  CardData,
   CardStat,
+  CardType,
   Deck,
   DeckStats,
   Direction,
@@ -19,6 +22,9 @@ const dataDir = process.env.DATA_DIR
   ? path.resolve(process.env.DATA_DIR)
   : path.join(__dirname, "..", "data");
 fs.mkdirSync(dataDir, { recursive: true });
+
+export const mediaDir = path.join(dataDir, "media");
+fs.mkdirSync(mediaDir, { recursive: true });
 
 export const db = new DatabaseSync(path.join(dataDir, "flashy.db"));
 db.exec("PRAGMA journal_mode = WAL;");
@@ -44,6 +50,8 @@ db.exec(`
     front TEXT NOT NULL,
     back TEXT NOT NULL,
     bidirectional INTEGER NOT NULL DEFAULT 1,
+    type TEXT NOT NULL DEFAULT 'basic',
+    data TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT NOT NULL
   );
@@ -54,6 +62,14 @@ db.exec(`
     correct_count INTEGER NOT NULL DEFAULT 0,
     incorrect_count INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (card_id, direction)
+  );
+
+  CREATE TABLE IF NOT EXISTS media (
+    hash TEXT PRIMARY KEY,
+    ext TEXT NOT NULL,
+    mime TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    created_at TEXT NOT NULL
   );
 
   CREATE INDEX IF NOT EXISTS idx_decks_project ON decks(project_id);
@@ -84,6 +100,13 @@ db.exec(`
     pending_conflict TEXT
   );
 `);
+
+// Additive Spalten-Migrationen für DBs, die vor diesen Feldern angelegt wurden.
+{
+  const cols = allRows<{ name: string }>("PRAGMA table_info(cards)").map((c) => c.name);
+  if (!cols.includes("type")) db.exec("ALTER TABLE cards ADD COLUMN type TEXT NOT NULL DEFAULT 'basic'");
+  if (!cols.includes("data")) db.exec("ALTER TABLE cards ADD COLUMN data TEXT");
+}
 
 // Beim allerersten Anlegen von sync_state gelten bereits vorhandene Daten als
 // "lokal geändert" -- sonst würde der erste Sync sie stillschweigend durch den
@@ -198,6 +221,8 @@ interface CardRow {
   front: string;
   back: string;
   bidirectional: number;
+  type: string;
+  data: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -210,20 +235,30 @@ function statsForCard(cardId: string): CardStat[] {
 }
 
 function rowToCard(row: CardRow): Card {
+  let data: CardData | null = null;
+  if (row.data) {
+    try {
+      data = JSON.parse(row.data) as CardData;
+    } catch {
+      data = null;
+    }
+  }
   return {
     id: row.id,
     deckId: row.deckId,
     front: row.front,
     back: row.back,
     bidirectional: row.bidirectional === 1,
+    type: (row.type as CardType) ?? "basic",
+    data,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     stats: statsForCard(row.id),
   };
 }
 
-const cardSelect =
-  "SELECT id, deck_id as deckId, front, back, bidirectional, created_at as createdAt, updated_at as updatedAt FROM cards";
+const cardCols = "id, deck_id as deckId, front, back, bidirectional, type, data, created_at as createdAt, updated_at as updatedAt";
+const cardSelect = `SELECT ${cardCols} FROM cards`;
 
 export function listCardsByDeck(deckId: string): Card[] {
   const rows = allRows<CardRow>(`${cardSelect} WHERE deck_id = ? ORDER BY created_at ASC`, deckId);
@@ -233,7 +268,7 @@ export function listCardsByDeck(deckId: string): Card[] {
 export function listCardsByProject(projectId: string): Card[] {
   const rows = allRows<CardRow>(
     `SELECT cards.id, cards.deck_id as deckId, cards.front, cards.back, cards.bidirectional,
-            cards.created_at as createdAt, cards.updated_at as updatedAt
+            cards.type, cards.data, cards.created_at as createdAt, cards.updated_at as updatedAt
      FROM cards JOIN decks ON decks.id = cards.deck_id
      WHERE decks.project_id = ? ORDER BY cards.created_at ASC`,
     projectId
@@ -259,36 +294,43 @@ function ensureStatsRows(cardId: string, bidirectional: boolean): void {
   }
 }
 
-export function createCard(
-  id: string,
-  deckId: string,
-  front: string,
-  back: string,
-  bidirectional: boolean
-): Card {
+export interface CardInput {
+  front: string;
+  back: string;
+  bidirectional: boolean;
+  type?: CardType;
+  data?: CardData | null;
+}
+
+/** Nur der Basic-Typ ist bidirektional; alle anderen laufen einseitig. */
+function effectiveBidirectional(input: CardInput): boolean {
+  const type = input.type ?? "basic";
+  return type === "basic" ? input.bidirectional : false;
+}
+
+function serializeData(data: CardData | null | undefined): string | null {
+  return data && Object.keys(data).length > 0 ? JSON.stringify(data) : null;
+}
+
+export function createCard(id: string, deckId: string, input: CardInput): Card {
   const timestamp = nowIso();
+  const type = input.type ?? "basic";
+  const bidi = effectiveBidirectional(input);
   db.prepare(
-    "INSERT INTO cards (id, deck_id, front, back, bidirectional, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-  ).run(id, deckId, front, back, bidirectional ? 1 : 0, timestamp, timestamp);
-  ensureStatsRows(id, bidirectional);
+    "INSERT INTO cards (id, deck_id, front, back, bidirectional, type, data, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+  ).run(id, deckId, input.front, input.back, bidi ? 1 : 0, type, serializeData(input.data), timestamp, timestamp);
+  ensureStatsRows(id, bidi);
   touch();
   return getCard(id)!;
 }
 
-export function updateCard(
-  id: string,
-  front: string,
-  back: string,
-  bidirectional: boolean
-): Card | undefined {
-  db.prepare("UPDATE cards SET front = ?, back = ?, bidirectional = ?, updated_at = ? WHERE id = ?").run(
-    front,
-    back,
-    bidirectional ? 1 : 0,
-    nowIso(),
-    id
-  );
-  ensureStatsRows(id, bidirectional);
+export function updateCard(id: string, input: CardInput): Card | undefined {
+  const type = input.type ?? "basic";
+  const bidi = effectiveBidirectional(input);
+  db.prepare(
+    "UPDATE cards SET front = ?, back = ?, bidirectional = ?, type = ?, data = ?, updated_at = ? WHERE id = ?"
+  ).run(input.front, input.back, bidi ? 1 : 0, type, serializeData(input.data), nowIso(), id);
+  ensureStatsRows(id, bidi);
   touch();
   return getCard(id);
 }
@@ -461,4 +503,165 @@ export function bumpDataVersion(): void {
 
 export function defaultDeviceName(): string {
   return os.hostname();
+}
+
+// ---------- Medien (inhaltsadressiert) ----------
+
+export interface MediaRow {
+  hash: string;
+  ext: string;
+  mime: string;
+  size: number;
+}
+
+export interface MediaMeta extends MediaRow {
+  /** Kanonische, hostfreie Referenz, wie sie im Kartentext steht. */
+  ref: string;
+}
+
+const MIME_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+  "image/avif": "avif",
+  "image/svg+xml": "svg",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/aac": "aac",
+  "audio/ogg": "ogg",
+  "audio/wav": "wav",
+  "audio/webm": "weba",
+  "audio/x-m4a": "m4a",
+};
+
+const EXT_MIME: Record<string, string> = Object.fromEntries(
+  Object.entries(MIME_EXT).map(([mime, ext]) => [ext, mime])
+);
+
+export function extForMime(mime: string, fallbackName?: string): string {
+  if (MIME_EXT[mime]) return MIME_EXT[mime];
+  const dot = fallbackName?.lastIndexOf(".") ?? -1;
+  if (fallbackName && dot >= 0) return fallbackName.slice(dot + 1).toLowerCase().replace(/[^a-z0-9]/g, "");
+  return "bin";
+}
+
+export function mimeForExt(ext: string): string {
+  return EXT_MIME[ext] ?? "application/octet-stream";
+}
+
+export function mediaRef(hash: string, ext: string): string {
+  return `media/${hash}.${ext}`;
+}
+
+export function mediaFilePath(hash: string, ext: string): string {
+  return path.join(mediaDir, `${hash}.${ext}`);
+}
+
+export function getMedia(hash: string): MediaRow | undefined {
+  return getRow<MediaRow>("SELECT hash, ext, mime, size FROM media WHERE hash = ?", hash);
+}
+
+export function listMediaHashes(): Set<string> {
+  const rows = allRows<{ hash: string }>("SELECT hash FROM media");
+  return new Set(rows.map((r) => r.hash));
+}
+
+/** Legt Bytes inhaltsadressiert ab (idempotent, dedupliziert über den sha-256). */
+export function saveMedia(bytes: Buffer, mime: string, ext: string): MediaMeta {
+  const hash = crypto.createHash("sha256").update(bytes).digest("hex");
+  const cleanExt = ext.toLowerCase().replace(/[^a-z0-9]/g, "") || "bin";
+  const existing = getMedia(hash);
+  if (!existing) {
+    fs.writeFileSync(mediaFilePath(hash, cleanExt), bytes);
+    db.prepare("INSERT INTO media (hash, ext, mime, size, created_at) VALUES (?, ?, ?, ?, ?)").run(
+      hash,
+      cleanExt,
+      mime,
+      bytes.length,
+      nowIso()
+    );
+    return { hash, ext: cleanExt, mime, size: bytes.length, ref: mediaRef(hash, cleanExt) };
+  }
+  return { ...existing, ref: mediaRef(existing.hash, existing.ext) };
+}
+
+/** Für den Sync-Pull: Bytes zu einer bekannten Referenz `media/<hash>.<ext>` ablegen. */
+export function saveMediaFromRef(ref: string, bytes: Buffer): void {
+  const parsed = parseMediaRef(ref);
+  if (!parsed) return;
+  const { hash, ext } = parsed;
+  if (getMedia(hash)) return;
+  fs.writeFileSync(mediaFilePath(hash, ext), bytes);
+  db.prepare("INSERT INTO media (hash, ext, mime, size, created_at) VALUES (?, ?, ?, ?, ?)").run(
+    hash,
+    ext,
+    mimeForExt(ext),
+    bytes.length,
+    nowIso()
+  );
+}
+
+export function parseMediaRef(ref: string): { hash: string; ext: string } | null {
+  const m = ref.match(/^media\/([a-f0-9]{64})\.([a-z0-9]+)$/i);
+  return m ? { hash: m[1].toLowerCase(), ext: m[2].toLowerCase() } : null;
+}
+
+const MEDIA_REF_RE = /media\/[a-f0-9]{64}\.[a-z0-9]+/gi;
+
+/** Sammelt alle in Karten referenzierten Medien-Referenzen. */
+export function referencedMediaRefs(): Set<string> {
+  const refs = new Set<string>();
+  const rows = allRows<{ front: string; back: string; data: string | null }>(
+    "SELECT front, back, data FROM cards"
+  );
+  for (const row of rows) {
+    const haystack = `${row.front}\n${row.back}\n${row.data ?? ""}`;
+    for (const match of haystack.matchAll(MEDIA_REF_RE)) refs.add(match[0].toLowerCase());
+  }
+  return refs;
+}
+
+const DATA_URI_RE = /data:(image|audio)\/([\w.+-]+);base64,([A-Za-z0-9+/=]+)/g;
+
+/** Ersetzt in einem Text eingebettete data-URIs durch Medien-Referenzen. */
+function embeddedToRefs(text: string): { text: string; changed: boolean } {
+  let changed = false;
+  const out = text.replace(DATA_URI_RE, (_all, kind: string, subtype: string, b64: string) => {
+    const bytes = Buffer.from(b64, "base64");
+    const mime = `${kind}/${subtype}`;
+    const meta = saveMedia(bytes, mime, extForMime(mime));
+    changed = true;
+    return meta.ref;
+  });
+  return { text: out, changed };
+}
+
+/**
+ * Einmalige Migration: wandelt eingebettete Bilder/Audio (data-URI) in
+ * inhaltsadressierte Medien-Dateien um und ersetzt die Referenzen. Idempotent
+ * (findet keine data-URIs mehr, sobald erledigt).
+ */
+export function migrateEmbeddedMedia(): void {
+  const rows = allRows<{ id: string; front: string; back: string; data: string | null }>(
+    "SELECT id, front, back, data FROM cards"
+  );
+  let migrated = 0;
+  const update = db.prepare("UPDATE cards SET front = ?, back = ?, data = ? WHERE id = ?");
+  for (const row of rows) {
+    if (!row.front.includes("data:") && !row.back.includes("data:") && !(row.data ?? "").includes("data:")) {
+      continue;
+    }
+    const front = embeddedToRefs(row.front);
+    const back = embeddedToRefs(row.back);
+    const data = row.data ? embeddedToRefs(row.data) : { text: null as string | null, changed: false };
+    if (front.changed || back.changed || data.changed) {
+      update.run(front.text, back.text, data.text, row.id);
+      migrated++;
+    }
+  }
+  if (migrated > 0) {
+    touch();
+    console.log(`Flashy: ${migrated} Karte(n) mit eingebetteten Medien migriert.`);
+  }
 }

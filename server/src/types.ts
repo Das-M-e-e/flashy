@@ -19,12 +19,32 @@ export interface CardStat {
   incorrectCount: number;
 }
 
+export type CardType = "basic" | "type_answer" | "choice" | "truefalse" | "cloze";
+
+export interface ChoiceOption {
+  text: string;
+  correct: boolean;
+}
+
+export interface CardData {
+  /** choice: Auswahlmöglichkeiten */
+  options?: ChoiceOption[];
+  /** choice: Mehrfachauswahl erlaubt */
+  multi?: boolean;
+  /** type_answer: zusätzlich akzeptierte Antwortvarianten */
+  answers?: string[];
+  /** truefalse: die korrekte Aussage */
+  answer?: boolean;
+}
+
 export interface Card {
   id: string;
   deckId: string;
   front: string;
   back: string;
   bidirectional: boolean;
+  type: CardType;
+  data: CardData | null;
   createdAt: string;
   updatedAt: string;
   stats: CardStat[];

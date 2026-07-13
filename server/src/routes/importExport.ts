@@ -51,7 +51,11 @@ deckImportRouter.post("/", uploadCsv, (req: Request<{ deckId: string }>, res) =>
   }
   const rows = parseCsv(req.file.buffer.toString("utf-8"));
   for (const row of rows) {
-    db.createCard(randomUUID(), deck.id, row.front, row.back, row.bidirectional);
+    db.createCard(randomUUID(), deck.id, {
+      front: row.front,
+      back: row.back,
+      bidirectional: row.bidirectional,
+    });
   }
   res.status(201).json({ imported: rows.length, cards: db.listCardsByDeck(deck.id) });
 });

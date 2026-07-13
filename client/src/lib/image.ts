@@ -1,17 +1,14 @@
-/** Maximale Kantenlänge nach dem Herunterrechnen. */
+/** Maximale Kantenlänge, auf die Bilder vor dem Upload heruntergerechnet werden. */
 const MAX_EDGE = 1600;
 
-/** Grenze für die fertige data-URI. Darüber wächst die Sync-Datei zu stark. */
-export const MAX_DATA_URL_BYTES = 1024 * 1024;
-
-export class ImageTooLargeError extends Error {
-  constructor(public bytes: number) {
-    super("Bild ist zu groß");
-    this.name = "ImageTooLargeError";
+export class MediaTooLargeError extends Error {
+  constructor() {
+    super("Mediendatei ist zu groß");
+    this.name = "MediaTooLargeError";
   }
 }
 
-function loadImage(file: File): Promise<HTMLImageElement> {
+function loadImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
@@ -27,13 +24,9 @@ function loadImage(file: File): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Rechnet ein Bild auf eine vernünftige Größe herunter und liefert es als
- * data-URI. PNG bleibt PNG (Transparenz), alles andere wird JPEG.
- */
-export async function fileToDataUrl(file: File): Promise<string> {
+/** Rechnet ein Bild auf eine vernünftige Größe herunter und liefert einen Blob. */
+async function downscaleImage(file: File): Promise<{ blob: Blob; ext: string }> {
   const img = await loadImage(file);
-
   const scale = Math.min(1, MAX_EDGE / Math.max(img.width, img.height));
   const width = Math.max(1, Math.round(img.width * scale));
   const height = Math.max(1, Math.round(img.height * scale));
@@ -46,16 +39,37 @@ export async function fileToDataUrl(file: File): Promise<string> {
   ctx.drawImage(img, 0, 0, width, height);
 
   const keepsAlpha = file.type === "image/png" || file.type === "image/webp";
-  let dataUrl = keepsAlpha ? canvas.toDataURL("image/png") : canvas.toDataURL("image/jpeg", 0.85);
+  const mime = keepsAlpha ? "image/png" : "image/jpeg";
+  const ext = keepsAlpha ? "png" : "jpg";
+  const blob: Blob = await new Promise((resolve, reject) =>
+    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("Bild konnte nicht kodiert werden"))), mime, 0.85)
+  );
+  return { blob, ext };
+}
 
-  // PNG-Fotos werden schnell riesig -- dann doch als JPEG versuchen.
-  if (dataUrl.length > MAX_DATA_URL_BYTES && keepsAlpha) {
-    dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+/** Lädt eine Datei/einen Blob als Medium hoch und liefert die Referenz `media/<hash>.<ext>`. */
+async function uploadMedia(data: Blob, filename: string): Promise<string> {
+  const form = new FormData();
+  form.append("file", data, filename);
+  const res = await fetch("/api/media", { method: "POST", body: form });
+  if (res.status === 413) throw new MediaTooLargeError();
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Upload fehlgeschlagen (${res.status})`);
   }
-  if (dataUrl.length > MAX_DATA_URL_BYTES) {
-    throw new ImageTooLargeError(dataUrl.length);
-  }
-  return dataUrl;
+  const body = (await res.json()) as { ref: string };
+  return body.ref;
+}
+
+/** Bild herunterrechnen und hochladen -> Medien-Referenz. */
+export async function insertImage(file: File): Promise<string> {
+  const { blob, ext } = await downscaleImage(file);
+  return uploadMedia(blob, `image.${ext}`);
+}
+
+/** Audiodatei unverändert hochladen -> Medien-Referenz. */
+export async function insertAudio(file: File): Promise<string> {
+  return uploadMedia(file, file.name || "audio");
 }
 
 /** Erste Bilddatei aus einem Zwischenablage-Ereignis, falls vorhanden. */

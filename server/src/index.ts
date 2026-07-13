@@ -1,10 +1,11 @@
 import path from "node:path";
 import cors from "cors";
 import express from "express";
-import { db } from "./db";
+import { db, migrateEmbeddedMedia } from "./db";
 import { cardsRouter, deckCardsRouter } from "./routes/cards";
 import { decksRouter, projectDecksRouter } from "./routes/decks";
 import { deckExportRouter, deckImportRouter, projectExportRouter } from "./routes/importExport";
+import { mediaRouter } from "./routes/media";
 import { projectsRouter } from "./routes/projects";
 import { deckStatsRouter, projectStatsRouter, projectStudyRouter } from "./routes/study";
 import { syncRouter } from "./routes/sync";
@@ -32,6 +33,7 @@ app.use("/api/decks/:deckId/export", deckExportRouter);
 app.use("/api/decks/:deckId/stats", deckStatsRouter);
 
 app.use("/api/cards", cardsRouter);
+app.use("/api/media", mediaRouter);
 app.use("/api/sync", syncRouter);
 
 // API-Fehler als JSON ausliefern -- der Client erwartet {error}, keine HTML-Seite.
@@ -60,7 +62,9 @@ app.use((req, res, next) => {
 
 const server = app.listen(port, host, () => {
   console.log(`Flashy server läuft auf http://localhost:${port}`);
-  // Beim Start einmal abgleichen, danach im konfigurierten Intervall.
+  // Altbestand mit eingebetteten Medien auf Dateien umstellen ...
+  migrateEmbeddedMedia();
+  // ... dann beim Start einmal abgleichen und im Intervall weiterlaufen.
   void syncEngine.sync();
   syncEngine.rescheduleAutoSync();
 });

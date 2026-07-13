@@ -1,7 +1,7 @@
 import * as db from "../db";
 import type { Card, Deck, Project, Snapshot, SnapshotSummary } from "../types";
 
-export const FORMAT_VERSION = 1;
+export const FORMAT_VERSION = 2;
 
 /** Serialisiert den gesamten lokalen Datenbestand inklusive Lernstatistiken. */
 export function exportSnapshot(): Snapshot {
@@ -74,15 +74,27 @@ export function importSnapshot(snapshot: Snapshot): void {
     }
 
     const insertCard = db.db.prepare(
-      `INSERT INTO cards (id, deck_id, front, back, bidirectional, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO cards (id, deck_id, front, back, bidirectional, type, data, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const insertStat = db.db.prepare(
       `INSERT INTO card_stats (card_id, direction, correct_count, incorrect_count)
        VALUES (?, ?, ?, ?)`
     );
     for (const c of cards as Card[]) {
-      insertCard.run(c.id, c.deckId, c.front, c.back, c.bidirectional ? 1 : 0, c.createdAt, c.updatedAt);
+      const type = c.type ?? "basic";
+      const data = c.data && Object.keys(c.data).length > 0 ? JSON.stringify(c.data) : null;
+      insertCard.run(
+        c.id,
+        c.deckId,
+        c.front,
+        c.back,
+        c.bidirectional ? 1 : 0,
+        type,
+        data,
+        c.createdAt,
+        c.updatedAt
+      );
       for (const stat of c.stats ?? []) {
         insertStat.run(c.id, stat.direction, stat.correctCount, stat.incorrectCount);
       }
