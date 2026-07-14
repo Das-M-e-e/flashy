@@ -180,6 +180,19 @@ export default function LlmSettingsDialog({ onClose }: { onClose: () => void }) 
           )}
         </section>
 
+        <section className="sync-section">
+          <h4>{t("skill.title")}</h4>
+          <p className="sync-hint">{t("skill.intro")}</p>
+          <div className="sync-row">
+            <a className="button" href="/api/skill/flashcards.zip" download>
+              {t("skill.download")}
+            </a>
+            <a className="mastery-caption" href="/api/skill/flashcards.md" target="_blank" rel="noreferrer">
+              {t("skill.view")}
+            </a>
+          </div>
+        </section>
+
         <div className="modal-actions sync-actions">
           {config?.hasKey && (
             <>

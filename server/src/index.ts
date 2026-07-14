@@ -8,6 +8,7 @@ import { deckExamsRouter, examsRouter, projectExamsRouter } from "./routes/exams
 import { deckExportRouter, deckImportRouter, projectExportRouter } from "./routes/importExport";
 import { llmRouter } from "./routes/llm";
 import { mediaRouter } from "./routes/media";
+import { skillRouter } from "./routes/skill";
 import { projectsRouter } from "./routes/projects";
 import { deckStatsRouter, projectStatsRouter, projectStudyRouter } from "./routes/study";
 import { syncRouter } from "./routes/sync";
@@ -41,6 +42,7 @@ app.use("/api/media", mediaRouter);
 app.use("/api/sync", syncRouter);
 app.use("/api/llm", llmRouter);
 app.use("/api/exams", examsRouter);
+app.use("/api/skill", skillRouter);
 
 // API-Fehler als JSON ausliefern -- der Client erwartet {error}, keine HTML-Seite.
 app.use((err: NodeJS.ErrnoException & { status?: number; type?: string }, req: express.Request, res: express.Response, next: express.NextFunction) => {

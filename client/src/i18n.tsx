@@ -272,6 +272,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "llm.needModel": "Bitte ein Modell angeben.",
     "llm.needBaseUrl": "Bitte eine Basis-URL angeben.",
 
+    "skill.title": "Karteikarten-Skill",
+    "skill.intro":
+      "Lade den Skill herunter und gib ihn deinem LLM (Claude o.ä.). Häng dann Skripte/Altklausuren an oder nenne ein Thema – das LLM erstellt eine JSON-Datei, die du hier in einen Stapel importieren kannst.",
+    "skill.download": "Skill herunterladen (ZIP)",
+    "skill.view": "SKILL.md ansehen",
+
     "exam.create": "Prüfung erstellen",
     "exam.creating": "Wird erstellt …",
     "exam.createTitle": "Probeklausur konfigurieren",
@@ -604,6 +610,12 @@ const translations: Record<Lang, Record<string, string>> = {
     "llm.saved": "Settings saved.",
     "llm.needModel": "Please provide a model.",
     "llm.needBaseUrl": "Please provide a base URL.",
+
+    "skill.title": "Flashcard skill",
+    "skill.intro":
+      "Download the skill and give it to your LLM (Claude etc.). Then attach lecture notes / past exams or name a topic — the LLM produces a JSON file you can import into a deck here.",
+    "skill.download": "Download skill (ZIP)",
+    "skill.view": "View SKILL.md",
 
     "exam.create": "Create exam",
     "exam.creating": "Creating …",
