@@ -24,6 +24,37 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export interface ExportOptions {
+  format: "flashy" | "genericJson" | "anki" | "quizlet" | "csv";
+  cardTypes: string[] | null;
+  fields: string[];
+}
+
+/** POSTet die Export-Optionen und löst den Datei-Download im Browser aus. */
+async function downloadExport(url: string, opts: ExportOptions): Promise<void> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(opts),
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.error ?? `Export fehlgeschlagen (${res.status})`);
+  }
+  const disposition = res.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  const filename = match ? match[1] : "export";
+  const blob = await res.blob();
+  const link = document.createElement("a");
+  const objectUrl = URL.createObjectURL(blob);
+  link.href = objectUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(objectUrl);
+}
+
 export const api = {
   listProjects: () => request<Project[]>("/api/projects"),
   createProject: (name: string) =>
@@ -31,7 +62,7 @@ export const api = {
   renameProject: (id: string, name: string) =>
     request<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
-  exportProjectUrl: (id: string) => `/api/projects/${id}/export`,
+  exportProject: (id: string, opts: ExportOptions) => downloadExport(`/api/projects/${id}/export`, opts),
   projectStats: (id: string) => request<ProjectStats>(`/api/projects/${id}/stats`),
   studyProjectCards: (id: string) => request<Card[]>(`/api/projects/${id}/study-cards`),
 
@@ -43,7 +74,7 @@ export const api = {
     request<Deck>(`/api/decks/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
   deleteDeck: (id: string) => request<void>(`/api/decks/${id}`, { method: "DELETE" }),
   deckStats: (id: string) => request<DeckStats>(`/api/decks/${id}/stats`),
-  exportDeckUrl: (id: string) => `/api/decks/${id}/export`,
+  exportDeck: (id: string, opts: ExportOptions) => downloadExport(`/api/decks/${id}/export`, opts),
   importDeck: async (id: string, file: File) => {
     const formData = new FormData();
     formData.append("file", file);

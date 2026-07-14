@@ -4,6 +4,7 @@ import { api } from "../api";
 import Avatar from "../components/Avatar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
+import ExportDialog from "../components/ExportDialog";
 import NameDialog from "../components/NameDialog";
 import ProgressRing from "../components/ProgressRing";
 import { useLocale } from "../i18n";
@@ -25,6 +26,7 @@ export default function ProjectPage() {
   const [creating, setCreating] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Deck | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Deck | null>(null);
+  const [showExport, setShowExport] = useState(false);
 
   async function load() {
     if (!projectId) return;
@@ -156,7 +158,7 @@ export default function ProjectPage() {
         <button onClick={() => fileInputRef.current?.click()}>{t("project.importDeck")}</button>
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.tsv,.txt,.json,.zip"
           ref={fileInputRef}
           style={{ display: "none" }}
           onChange={handleImportDeck}
@@ -164,9 +166,9 @@ export default function ProjectPage() {
         <button disabled={decks.length === 0} onClick={() => navigate(`/study/project/${project.id}`)}>
           {t("project.studyAll")}
         </button>
-        <a className="button" href={api.exportProjectUrl(project.id)}>
-          {t("project.exportZip")}
-        </a>
+        <button disabled={decks.length === 0} onClick={() => setShowExport(true)}>
+          {t("project.export")}
+        </button>
       </div>
 
       {decks.length === 0 ? (
@@ -239,6 +241,14 @@ export default function ProjectPage() {
           message={t("project.deckDeleteConfirm", { name: deleteTarget.name })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDeleteDeck(deleteTarget.id)}
+        />
+      )}
+
+      {showExport && (
+        <ExportDialog
+          title={t("export.projectTitle")}
+          onCancel={() => setShowExport(false)}
+          onExport={(opts) => api.exportProject(project.id, opts)}
         />
       )}
     </div>

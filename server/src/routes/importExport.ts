@@ -1,20 +1,14 @@
 import { randomUUID } from "node:crypto";
 import { Router, type NextFunction, type Request, type Response } from "express";
-import JSZip from "jszip";
 import multer from "multer";
 import * as db from "../db";
-import { parseCsv, toCsv } from "../csv";
+import { exportDeck, exportProject, importData, type ExportOptions, type ImportedCard } from "../formats";
 
-const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
+const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
-// CSVs mit eingebetteten Bildern (data-URIs) werden schnell groß.
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_UPLOAD_BYTES },
-});
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: MAX_UPLOAD_BYTES } });
 
-/** Ohne das würde ein zu großer Upload als HTML-500 statt als JSON zurückkommen. */
-function uploadCsv(req: Request, res: Response, next: NextFunction): void {
+function uploadFile(req: Request, res: Response, next: NextFunction): void {
   upload.single("file")(req, res, (err: unknown) => {
     if (err instanceof multer.MulterError) {
       const tooLarge = err.code === "LIMIT_FILE_SIZE";
@@ -33,13 +27,49 @@ function uploadCsv(req: Request, res: Response, next: NextFunction): void {
   });
 }
 
-function sanitizeFileName(name: string): string {
-  return name.replace(/[\\/:*?"<>|]/g, "_").trim() || "stapel";
+const MEDIA_REF_RE = /media\/[a-f0-9]{64}\.[a-z0-9]+/gi;
+
+/**
+ * Legt importierte Mediendateien ab (mit echtem Hash) und liefert eine Ersetzungs-
+ * Tabelle alte -> neue Referenz, falls die Datei-Bytes von der Referenz abweichen.
+ */
+function storeImportedMedia(media: Map<string, Buffer>): Map<string, string> {
+  const rename = new Map<string, string>();
+  for (const [ref, bytes] of media) {
+    const parsed = db.parseMediaRef(ref);
+    const ext = parsed?.ext ?? "bin";
+    const meta = db.saveMedia(bytes, db.mimeForExt(ext), ext);
+    if (meta.ref !== ref.toLowerCase()) rename.set(ref.toLowerCase(), meta.ref);
+  }
+  return rename;
 }
+
+function applyRename(text: string, rename: Map<string, string>): string {
+  if (rename.size === 0) return text;
+  return text.replace(MEDIA_REF_RE, (m) => rename.get(m.toLowerCase()) ?? m);
+}
+
+function parseExportOptions(body: unknown): ExportOptions {
+  const b = (body ?? {}) as Record<string, unknown>;
+  const format = b.format as ExportOptions["format"];
+  return {
+    format: ["flashy", "genericJson", "anki", "quizlet", "csv"].includes(format) ? format : "flashy",
+    cardTypes: Array.isArray(b.cardTypes) ? (b.cardTypes as ExportOptions["cardTypes"]) : null,
+    fields: Array.isArray(b.fields) ? (b.fields as ExportOptions["fields"]) : [],
+  };
+}
+
+function sendFile(res: Response, file: { filename: string; mime: string; buffer: Buffer }): void {
+  res.setHeader("Content-Type", file.mime);
+  res.setHeader("Content-Disposition", `attachment; filename="${file.filename}"`);
+  res.send(file.buffer);
+}
+
+// ---------- Import ----------
 
 export const deckImportRouter = Router({ mergeParams: true });
 
-deckImportRouter.post("/", uploadCsv, (req: Request<{ deckId: string }>, res) => {
+deckImportRouter.post("/", uploadFile, async (req: Request<{ deckId: string }>, res) => {
   const deck = db.getDeck(req.params.deckId);
   if (!deck) {
     res.status(404).json({ error: "Stapel nicht gefunden" });
@@ -49,49 +79,54 @@ deckImportRouter.post("/", uploadCsv, (req: Request<{ deckId: string }>, res) =>
     res.status(400).json({ error: "Keine Datei hochgeladen" });
     return;
   }
-  const rows = parseCsv(req.file.buffer.toString("utf-8"));
-  for (const row of rows) {
-    db.createCard(randomUUID(), deck.id, {
-      front: row.front,
-      back: row.back,
-      bidirectional: row.bidirectional,
-    });
+
+  let parsed: { cards: ImportedCard[]; media: Map<string, Buffer> };
+  try {
+    parsed = await importData(req.file.buffer, req.file.originalname || "import");
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Import fehlgeschlagen" });
+    return;
   }
-  res.status(201).json({ imported: rows.length, cards: db.listCardsByDeck(deck.id) });
+
+  const rename = storeImportedMedia(parsed.media);
+
+  for (const { input, stats } of parsed.cards) {
+    const card = db.createCard(randomUUID(), deck.id, {
+      ...input,
+      front: applyRename(input.front, rename),
+      back: applyRename(input.back, rename),
+    });
+    if (stats && stats.length) db.setCardStatsRows(card.id, stats);
+  }
+
+  res.status(201).json({ imported: parsed.cards.length, cards: db.listCardsByDeck(deck.id) });
 });
+
+// ---------- Export (Deck) ----------
 
 export const deckExportRouter = Router({ mergeParams: true });
 
-deckExportRouter.get("/", (req: Request<{ deckId: string }>, res) => {
+deckExportRouter.post("/", async (req: Request<{ deckId: string }>, res) => {
   const deck = db.getDeck(req.params.deckId);
   if (!deck) {
     res.status(404).json({ error: "Stapel nicht gefunden" });
     return;
   }
-  const cards = db.listCardsByDeck(deck.id);
-  const csv = toCsv(cards.map((card) => ({ front: card.front, back: card.back, bidirectional: card.bidirectional })));
-  res.setHeader("Content-Type", "text/csv; charset=utf-8");
-  res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFileName(deck.name)}.csv"`);
-  res.send(csv);
+  const file = await exportDeck(db.listCardsByDeck(deck.id), deck.name, parseExportOptions(req.body));
+  sendFile(res, file);
 });
+
+// ---------- Export (Projekt) ----------
 
 export const projectExportRouter = Router({ mergeParams: true });
 
-projectExportRouter.get("/", async (req: Request<{ projectId: string }>, res) => {
+projectExportRouter.post("/", async (req: Request<{ projectId: string }>, res) => {
   const project = db.getProject(req.params.projectId);
   if (!project) {
     res.status(404).json({ error: "Projekt nicht gefunden" });
     return;
   }
-  const decks = db.listDecksByProject(project.id);
-  const zip = new JSZip();
-  for (const deck of decks) {
-    const cards = db.listCardsByDeck(deck.id);
-    const csv = toCsv(cards.map((card) => ({ front: card.front, back: card.back, bidirectional: card.bidirectional })));
-    zip.file(`${sanitizeFileName(deck.name)}.csv`, csv);
-  }
-  const buffer = await zip.generateAsync({ type: "nodebuffer" });
-  res.setHeader("Content-Type", "application/zip");
-  res.setHeader("Content-Disposition", `attachment; filename="${sanitizeFileName(project.name)}.zip"`);
-  res.send(buffer);
+  const decks = db.listDecksByProject(project.id).map((d) => ({ name: d.name, cards: db.listCardsByDeck(d.id) }));
+  const file = await exportProject(decks, project.name, parseExportOptions(req.body));
+  sendFile(res, file);
 });

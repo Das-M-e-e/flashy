@@ -1266,6 +1266,46 @@ input[type="password"] {
   align-self: flex-start;
 }
 
+/* ---------- Export-Dialog ---------- */
+
+.export-advanced-toggle {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  color: var(--primary);
+  font-weight: 600;
+}
+.export-advanced-toggle:hover {
+  border: none;
+  text-decoration: underline;
+}
+.export-advanced {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+.export-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.export-group-disabled {
+  opacity: 0.55;
+}
+.export-checks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px 14px;
+}
+.export-checks .checkbox-row {
+  font-size: 14px;
+}
+
 /* Bild-Symbol in der Kartenliste */
 .image-mark {
   display: inline-block;

@@ -7,10 +7,11 @@ import CardControls, { DEFAULT_FILTER, useFilteredCards, type CardFilterState } 
 import CardEditorModal from "../components/CardEditorModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
+import ExportDialog from "../components/ExportDialog";
 import ProgressRing from "../components/ProgressRing";
 import { useLocale } from "../i18n";
 import { clozeToPlain, hasImage, plainExcerpt } from "../lib/markdown";
-import type { Card, CardInput, Deck, DeckStats } from "../types";
+import type { Card, CardInput, CardType, Deck, DeckStats } from "../types";
 
 export default function DeckPage() {
   const { t } = useLocale();
@@ -26,8 +27,10 @@ export default function DeckPage() {
   const [editingCard, setEditingCard] = useState<Card | "new" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Card | null>(null);
   const [filter, setFilter] = useState<CardFilterState>(DEFAULT_FILTER);
+  const [showExport, setShowExport] = useState(false);
 
   const visibleCards = useFilteredCards(cards, filter);
+  const availableTypes = [...new Set(cards.map((c) => c.type))] as CardType[];
 
   async function load() {
     if (!deckId) return;
@@ -155,19 +158,17 @@ export default function DeckPage() {
         <button disabled={cards.length === 0} onClick={() => navigate(`/study/deck/${deckId}`)}>
           {t("deck.study")}
         </button>
-        <button onClick={() => fileInputRef.current?.click()}>{t("deck.importCsv")}</button>
+        <button onClick={() => fileInputRef.current?.click()}>{t("deck.import")}</button>
         <input
           type="file"
-          accept=".csv,text/csv"
+          accept=".csv,.tsv,.txt,.json,.zip"
           ref={fileInputRef}
           style={{ display: "none" }}
           onChange={handleImport}
         />
-        {deckId && (
-          <a className="button" href={api.exportDeckUrl(deckId)}>
-            {t("deck.exportCsv")}
-          </a>
-        )}
+        <button disabled={cards.length === 0} onClick={() => setShowExport(true)}>
+          {t("deck.export")}
+        </button>
       </div>
 
       {cards.length === 0 ? (
@@ -225,6 +226,15 @@ export default function DeckPage() {
           message={t("card.deleteConfirm", { front: plainExcerpt(deleteTarget.front, 60) })}
           onCancel={() => setDeleteTarget(null)}
           onConfirm={() => handleDeleteCard(deleteTarget.id)}
+        />
+      )}
+
+      {showExport && deckId && (
+        <ExportDialog
+          title={t("export.deckTitle")}
+          availableTypes={availableTypes}
+          onCancel={() => setShowExport(false)}
+          onExport={(opts) => api.exportDeck(deckId, opts)}
         />
       )}
     </div>

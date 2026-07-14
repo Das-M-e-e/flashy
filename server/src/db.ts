@@ -340,6 +340,20 @@ export function deleteCard(id: string): void {
   touch();
 }
 
+/** Setzt Lernzähler beim Import (überschreibt vorhandene Werte der Richtung). */
+export function setCardStatsRows(
+  cardId: string,
+  rows: { direction: Direction; correctCount: number; incorrectCount: number }[]
+): void {
+  for (const r of rows) {
+    db.prepare(
+      `INSERT INTO card_stats (card_id, direction, correct_count, incorrect_count)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(card_id, direction) DO UPDATE SET correct_count = excluded.correct_count, incorrect_count = excluded.incorrect_count`
+    ).run(cardId, r.direction, Math.max(0, r.correctCount | 0), Math.max(0, r.incorrectCount | 0));
+  }
+}
+
 export function recordAnswer(cardId: string, direction: Direction, correct: boolean): void {
   const column = correct ? "correct_count" : "incorrect_count";
   db.prepare(
