@@ -3,42 +3,6 @@
 Lokal laufende Karteikarten-App mit Projekten, Stapeln, bidirektionalen Karten,
 CSV-Import/-Export und einem count-basierten Wiederholungsalgorithmus.
 
-## Starten
-
-Doppelklick auf **`Flashy starten.cmd`**.
-
-Beim ersten Start werden die Abhängigkeiten installiert und die App gebaut — das
-dauert einen Moment. Danach öffnet sich der Browser automatisch auf
-<http://localhost:4000>.
-
-Zum Beenden im Konsolenfenster **Strg+C** drücken. Nur so werden noch nicht
-hochgeladene Änderungen vorher synchronisiert.
-
-Nach Code-Änderungen einmal `Flashy starten.cmd rebuild` ausführen, um neu zu bauen.
-
-Voraussetzung: [Node.js](https://nodejs.org) (LTS). Fehlt es, sagt der Starter Bescheid.
-
-### Für Entwicklung
-
-```bash
-npm install
-npm run dev     # Server + Vite mit Hot-Reload (http://localhost:5173)
-npm run build
-npm start       # gebaute App unter http://localhost:4000
-```
-
-Der Server lauscht bewusst nur auf `127.0.0.1`, weil in der lokalen Datenbank ein
-GitHub-Token liegen kann. Über `HOST` und `SERVER_PORT` lässt sich das ändern.
-
-## Lernen
-
-Pro Karte und Richtung gilt `Level = max(0, richtig − falsch)`. Die Wahrscheinlichkeit,
-dass eine Karte gezogen wird, ist `1 / (Level + 1)` — je sicherer eine Karte sitzt,
-desto seltener kommt sie. Es gibt bewusst **keine** Zeitkomponente.
-
-Karten sind einzeln als bidirektional oder einseitig einstellbar (nur der Basic-Typ).
-Eine bidirektionale Karte zählt als zwei Lern-Items mit getrennten Statistiken.
-
 ## Kartentypen
 
 Beim Anlegen/Bearbeiten wählst du den Typ; der Editor passt seine Felder an:
