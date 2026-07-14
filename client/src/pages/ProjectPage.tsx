@@ -4,6 +4,7 @@ import { api } from "../api";
 import Avatar from "../components/Avatar";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DistributionBar from "../components/DistributionBar";
+import ExamHistory from "../components/ExamHistory";
 import ExportDialog from "../components/ExportDialog";
 import NameDialog from "../components/NameDialog";
 import ProgressRing from "../components/ProgressRing";
@@ -166,6 +167,9 @@ export default function ProjectPage() {
         <button disabled={decks.length === 0} onClick={() => navigate(`/study/project/${project.id}`)}>
           {t("project.studyAll")}
         </button>
+        <button disabled={decks.length === 0} onClick={() => navigate(`/exam/new/project/${project.id}`)}>
+          {t("exam.create")}
+        </button>
         <button disabled={decks.length === 0} onClick={() => setShowExport(true)}>
           {t("project.export")}
         </button>
@@ -214,6 +218,8 @@ export default function ProjectPage() {
           })}
         </div>
       )}
+
+      <ExamHistory projectId={project.id} />
 
       {creating && (
         <NameDialog

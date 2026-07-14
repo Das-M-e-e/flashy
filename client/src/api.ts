@@ -4,6 +4,10 @@ import type {
   Deck,
   DeckStats,
   Direction,
+  Exam,
+  ExamConfig,
+  LlmConfigView,
+  LlmProvider,
   Project,
   ProjectStats,
   RepoOption,
@@ -126,4 +130,31 @@ export const api = {
   syncNow: () => request<SyncStatus>("/api/sync/now", { method: "POST", body: JSON.stringify({}) }),
   syncResolve: (choice: "local" | "remote") =>
     request<SyncStatus>("/api/sync/resolve", { method: "POST", body: JSON.stringify({ choice }) }),
+
+  // ---------- LLM ----------
+  llmConfig: () => request<LlmConfigView>("/api/llm/config"),
+  llmSaveConfig: (config: { provider: LlmProvider; baseUrl: string; model: string }) =>
+    request<LlmConfigView>("/api/llm/config", { method: "PUT", body: JSON.stringify(config) }),
+  llmSaveKey: (key: string) =>
+    request<LlmConfigView>("/api/llm/key", { method: "POST", body: JSON.stringify({ key }) }),
+  llmClear: () => request<LlmConfigView>("/api/llm/config", { method: "DELETE" }),
+  llmTest: () => request<{ ok: boolean; model: string }>("/api/llm/test", { method: "POST", body: JSON.stringify({}) }),
+
+  // ---------- Prüfungen ----------
+  getExam: (id: string) => request<Exam>(`/api/exams/${id}`),
+  deleteExam: (id: string) => request<void>(`/api/exams/${id}`, { method: "DELETE" }),
+  listProjectExams: (projectId: string) => request<Exam[]>(`/api/projects/${projectId}/exams`),
+  listDeckExams: (deckId: string) => request<Exam[]>(`/api/decks/${deckId}/exams`),
+  createProjectExam: (projectId: string, body: { title: string; config: ExamConfig }) =>
+    request<Exam>(`/api/projects/${projectId}/exams`, { method: "POST", body: JSON.stringify(body) }),
+  createDeckExam: (deckId: string, body: { title: string; config: ExamConfig }) =>
+    request<Exam>(`/api/decks/${deckId}/exams`, { method: "POST", body: JSON.stringify(body) }),
+  startExam: (id: string) =>
+    request<Exam>(`/api/exams/${id}/start`, { method: "POST", body: JSON.stringify({}) }),
+  saveExamAnswers: (id: string, answers: Record<string, string>) =>
+    request<{ ok: boolean }>(`/api/exams/${id}/answers`, { method: "PUT", body: JSON.stringify({ answers }) }),
+  submitExam: (id: string, answers: Record<string, string>) =>
+    request<Exam>(`/api/exams/${id}/submit`, { method: "POST", body: JSON.stringify({ answers }) }),
+  gradeExam: (id: string) =>
+    request<Exam>(`/api/exams/${id}/grade`, { method: "POST", body: JSON.stringify({}) }),
 };

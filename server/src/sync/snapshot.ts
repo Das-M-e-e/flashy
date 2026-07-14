@@ -1,7 +1,7 @@
 import * as db from "../db";
-import type { Card, Deck, Project, Snapshot, SnapshotSummary } from "../types";
+import type { Card, Deck, Exam, Project, Snapshot, SnapshotSummary } from "../types";
 
-export const FORMAT_VERSION = 2;
+export const FORMAT_VERSION = 3;
 
 /** Serialisiert den gesamten lokalen Datenbestand inklusive Lernstatistiken. */
 export function exportSnapshot(): Snapshot {
@@ -14,13 +14,15 @@ export function exportSnapshot(): Snapshot {
       cards.push(...db.listCardsByDeck(deck.id));
     }
   }
+  // Nur bewertete Prüfungen wandern in die Historie; laufende bleiben lokal.
+  const exams = db.listAllExams().filter((e) => db.isSyncableExamStatus(e.status));
   const config = db.getSyncConfig();
   return {
     formatVersion: FORMAT_VERSION,
     deviceName: config.deviceName ?? db.defaultDeviceName(),
     updatedAt: db.nowIso(),
     counts: { projects: projects.length, decks: decks.length, cards: cards.length },
-    data: { projects, decks, cards },
+    data: { projects, decks, cards, exams },
   };
 }
 
@@ -49,16 +51,50 @@ export function parseSnapshot(raw: string): Snapshot {
   return parsed;
 }
 
+function insertExamRow(
+  stmt: ReturnType<typeof db.db.prepare>,
+  exam: Exam,
+  deckExists: (id: string | null) => boolean
+): void {
+  stmt.run(
+    exam.id,
+    exam.projectId,
+    deckExists(exam.deckId) ? exam.deckId : null,
+    exam.title,
+    exam.status,
+    JSON.stringify(exam.config ?? {}),
+    exam.paper ? JSON.stringify(exam.paper) : null,
+    exam.answers ? JSON.stringify(exam.answers) : null,
+    exam.result ? JSON.stringify(exam.result) : null,
+    exam.boundDevice ?? null,
+    exam.startedAt ?? null,
+    exam.durationSeconds ?? 0,
+    exam.error ?? null,
+    exam.createdAt,
+    exam.updatedAt
+  );
+}
+
 /**
  * Ersetzt den lokalen Datenbestand vollständig durch die Momentaufnahme.
- * IDs, Zeitstempel und Lernzähler werden unverändert übernommen.
+ * IDs, Zeitstempel und Lernzähler werden unverändert übernommen. Lokale, noch
+ * nicht bewertete Prüfungen (z.B. eine laufende) werden bewahrt, solange ihr
+ * Projekt im neuen Stand noch existiert.
  */
 export function importSnapshot(snapshot: Snapshot): void {
   const { projects, decks, cards } = snapshot.data;
+  const remoteExams = snapshot.data.exams ?? [];
+
+  // Lokale, nicht-synchronisierte Prüfungen vor dem Löschen sichern.
+  const localExams = db.listAllExams().filter((e) => !db.isSyncableExamStatus(e.status));
+
+  const projectIds = new Set(projects.map((p) => p.id));
+  const deckIds = new Set(decks.map((d) => d.id));
+  const deckExists = (id: string | null) => id != null && deckIds.has(id);
 
   db.db.exec("BEGIN");
   try {
-    // Foreign-Key-Cascade räumt decks -> cards -> card_stats mit ab.
+    // Foreign-Key-Cascade räumt decks -> cards -> card_stats -> exams mit ab.
     db.db.exec("DELETE FROM projects");
 
     const insertProject = db.db.prepare("INSERT INTO projects (id, name, created_at) VALUES (?, ?, ?)");
@@ -98,6 +134,22 @@ export function importSnapshot(snapshot: Snapshot): void {
       for (const stat of c.stats ?? []) {
         insertStat.run(c.id, stat.direction, stat.correctCount, stat.incorrectCount);
       }
+    }
+
+    const insertExam = db.db.prepare(
+      `INSERT INTO exams (id, project_id, deck_id, title, status, config, paper, answers, result,
+         bound_device, started_at, duration_seconds, error, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    // Bewertete Prüfungen aus dem Remote-Stand.
+    for (const exam of remoteExams as Exam[]) {
+      if (!projectIds.has(exam.projectId)) continue;
+      insertExamRow(insertExam, exam, deckExists);
+    }
+    // Lokale, laufende Prüfungen bewahren, sofern ihr Projekt noch existiert.
+    for (const exam of localExams) {
+      if (!projectIds.has(exam.projectId)) continue;
+      insertExamRow(insertExam, exam, deckExists);
     }
 
     db.db.exec("COMMIT");

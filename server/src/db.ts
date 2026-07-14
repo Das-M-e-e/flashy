@@ -11,6 +11,12 @@ import type {
   Deck,
   DeckStats,
   Direction,
+  Exam,
+  ExamConfig,
+  ExamPaper,
+  ExamResult,
+  ExamStatus,
+  LlmProvider,
   MasteryBuckets,
   MasteryLevel,
   MasterySummary,
@@ -99,6 +105,35 @@ db.exec(`
     last_error TEXT,
     pending_conflict TEXT
   );
+
+  CREATE TABLE IF NOT EXISTS llm_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    provider TEXT NOT NULL DEFAULT 'openai_compatible',
+    base_url TEXT NOT NULL DEFAULT '',
+    api_key TEXT,
+    model TEXT NOT NULL DEFAULT ''
+  );
+
+  CREATE TABLE IF NOT EXISTS exams (
+    id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    deck_id TEXT REFERENCES decks(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    config TEXT NOT NULL,
+    paper TEXT,
+    answers TEXT,
+    result TEXT,
+    bound_device TEXT,
+    started_at TEXT,
+    duration_seconds INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_exams_project ON exams(project_id);
+  CREATE INDEX IF NOT EXISTS idx_exams_deck ON exams(deck_id);
 `);
 
 // Additive Spalten-Migrationen für DBs, die vor diesen Feldern angelegt wurden.
@@ -124,6 +159,12 @@ db.exec(`
     db.prepare(
       "INSERT INTO sync_config (id, path, device_name, auto_sync, interval_minutes) VALUES (1, 'flashy-data.json', ?, 1, 5)"
     ).run(os.hostname());
+  }
+  const llm = getRow<{ id: number }>("SELECT id FROM llm_config WHERE id = 1");
+  if (!llm) {
+    db.prepare(
+      "INSERT INTO llm_config (id, provider, base_url, model) VALUES (1, 'openai_compatible', '', '')"
+    ).run();
   }
 }
 
@@ -517,6 +558,208 @@ export function bumpDataVersion(): void {
 
 export function defaultDeviceName(): string {
   return os.hostname();
+}
+
+// ---------- LLM-Konfiguration ----------
+
+export interface LlmConfigRow {
+  provider: LlmProvider;
+  baseUrl: string;
+  apiKey: string | null;
+  model: string;
+}
+
+export function getLlmConfig(): LlmConfigRow {
+  return getRow<LlmConfigRow>(
+    "SELECT provider, base_url as baseUrl, api_key as apiKey, model FROM llm_config WHERE id = 1"
+  )!;
+}
+
+export function setLlmConfig(opts: { provider: LlmProvider; baseUrl: string; model: string }): void {
+  db.prepare("UPDATE llm_config SET provider = ?, base_url = ?, model = ? WHERE id = 1").run(
+    opts.provider,
+    opts.baseUrl,
+    opts.model
+  );
+}
+
+export function setLlmKey(key: string | null): void {
+  db.prepare("UPDATE llm_config SET api_key = ? WHERE id = 1").run(key);
+}
+
+export function clearLlmConfig(): void {
+  db.prepare(
+    "UPDATE llm_config SET provider = 'openai_compatible', base_url = '', api_key = NULL, model = '' WHERE id = 1"
+  ).run();
+}
+
+// ---------- Prüfungen ----------
+
+/** Statuswerte, die in die synchronisierte Historie gehören. */
+export function isSyncableExamStatus(status: ExamStatus): boolean {
+  return status === "graded";
+}
+
+interface ExamRow {
+  id: string;
+  projectId: string;
+  deckId: string | null;
+  title: string;
+  status: string;
+  config: string;
+  paper: string | null;
+  answers: string | null;
+  result: string | null;
+  boundDevice: string | null;
+  startedAt: string | null;
+  durationSeconds: number;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function parseJson<T>(raw: string | null): T | null {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return null;
+  }
+}
+
+function rowToExam(row: ExamRow): Exam {
+  return {
+    id: row.id,
+    projectId: row.projectId,
+    deckId: row.deckId,
+    title: row.title,
+    status: row.status as ExamStatus,
+    config: parseJson<ExamConfig>(row.config) ?? ({} as ExamConfig),
+    paper: parseJson<ExamPaper>(row.paper),
+    answers: parseJson<Record<string, string>>(row.answers),
+    result: parseJson<ExamResult>(row.result),
+    boundDevice: row.boundDevice,
+    startedAt: row.startedAt,
+    durationSeconds: row.durationSeconds,
+    error: row.error,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
+}
+
+const examCols =
+  "id, project_id as projectId, deck_id as deckId, title, status, config, paper, answers, result, " +
+  "bound_device as boundDevice, started_at as startedAt, duration_seconds as durationSeconds, " +
+  "error, created_at as createdAt, updated_at as updatedAt";
+
+export function listExamsByProject(projectId: string): Exam[] {
+  return allRows<ExamRow>(
+    `SELECT ${examCols} FROM exams WHERE project_id = ? ORDER BY created_at DESC`,
+    projectId
+  ).map(rowToExam);
+}
+
+export function listExamsByDeck(deckId: string): Exam[] {
+  return allRows<ExamRow>(
+    `SELECT ${examCols} FROM exams WHERE deck_id = ? ORDER BY created_at DESC`,
+    deckId
+  ).map(rowToExam);
+}
+
+export function getExam(id: string): Exam | undefined {
+  const row = getRow<ExamRow>(`SELECT ${examCols} FROM exams WHERE id = ?`, id);
+  return row ? rowToExam(row) : undefined;
+}
+
+export interface ExamCreateInput {
+  id: string;
+  projectId: string;
+  deckId: string | null;
+  title: string;
+  status: ExamStatus;
+  config: ExamConfig;
+  durationSeconds: number;
+}
+
+export function createExam(input: ExamCreateInput): Exam {
+  const now = nowIso();
+  db.prepare(
+    `INSERT INTO exams (id, project_id, deck_id, title, status, config, duration_seconds, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    input.id,
+    input.projectId,
+    input.deckId,
+    input.title,
+    input.status,
+    JSON.stringify(input.config),
+    input.durationSeconds,
+    now,
+    now
+  );
+  // Kein touch(): eine frisch erstellte Prüfung ist noch nicht synchronisierbar.
+  return getExam(input.id)!;
+}
+
+/**
+ * Aktualisiert einzelne Felder einer Prüfung; nur übergebene Felder werden gesetzt.
+ * `opts.sync` erhöht die Sync-Revision -- nur setzen, wenn sich synchronisierbare
+ * (bewertete) Daten ändern; Fortschritt einer laufenden Prüfung bleibt lokal.
+ */
+export function updateExam(
+  id: string,
+  patch: Partial<{
+    status: ExamStatus;
+    paper: ExamPaper | null;
+    answers: Record<string, string> | null;
+    result: ExamResult | null;
+    boundDevice: string | null;
+    startedAt: string | null;
+    error: string | null;
+  }>,
+  opts: { sync?: boolean } = {}
+): Exam | undefined {
+  const sets: string[] = [];
+  const params: SqlParam[] = [];
+  const push = (col: string, value: SqlParam) => {
+    sets.push(`${col} = ?`);
+    params.push(value);
+  };
+  if ("status" in patch) push("status", patch.status!);
+  if ("paper" in patch) push("paper", patch.paper ? JSON.stringify(patch.paper) : null);
+  if ("answers" in patch) push("answers", patch.answers ? JSON.stringify(patch.answers) : null);
+  if ("result" in patch) push("result", patch.result ? JSON.stringify(patch.result) : null);
+  if ("boundDevice" in patch) push("bound_device", patch.boundDevice ?? null);
+  if ("startedAt" in patch) push("started_at", patch.startedAt ?? null);
+  if ("error" in patch) push("error", patch.error ?? null);
+  if (sets.length === 0) return getExam(id);
+  push("updated_at", nowIso());
+  params.push(id);
+  db.prepare(`UPDATE exams SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+  if (opts.sync) touch();
+  return getExam(id);
+}
+
+export function deleteExam(id: string): void {
+  db.prepare("DELETE FROM exams WHERE id = ?").run(id);
+  touch();
+}
+
+/** Alle Prüfungen (für den Sync-Snapshot). */
+export function listAllExams(): Exam[] {
+  return allRows<ExamRow>(`SELECT ${examCols} FROM exams ORDER BY created_at ASC`).map(rowToExam);
+}
+
+/** Beim Serverstart: hängen gebliebene Generierung/Bewertung auffangen. */
+export function failInterruptedExams(): void {
+  // Generierung ist nicht wiederaufnehmbar -> Fehler.
+  db.prepare(
+    "UPDATE exams SET status = 'error', error = ?, updated_at = ? WHERE status = 'generating'"
+  ).run("Erstellung unterbrochen (Serverneustart)", nowIso());
+  // Bewertung kann erneut angestoßen werden -> zurück auf abgegeben.
+  db.prepare(
+    "UPDATE exams SET status = 'submitted', error = ?, updated_at = ? WHERE status = 'grading'"
+  ).run("Bewertung unterbrochen (Serverneustart)", nowIso());
 }
 
 // ---------- Medien (inhaltsadressiert) ----------

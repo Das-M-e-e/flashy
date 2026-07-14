@@ -3,6 +3,7 @@ import { Link, Outlet } from "react-router-dom";
 import { useLocale, type Lang } from "../i18n";
 import { useSync } from "../sync";
 import { useTheme } from "../theme";
+import LlmSettingsDialog from "./LlmSettingsDialog";
 import Logo from "./Logo";
 import SyncConflictDialog from "./SyncConflictDialog";
 import SyncIndicator from "./SyncIndicator";
@@ -54,9 +55,22 @@ function LanguageSwitcher() {
   );
 }
 
+function LlmButton({ onOpen }: { onOpen: () => void }) {
+  const { t } = useLocale();
+  return (
+    <button className="icon-button" onClick={onOpen} title={t("llm.open")} aria-label={t("llm.open")}>
+      {/* Funke / KI */}
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M12 2l1.8 5.2L19 9l-5.2 1.8L12 16l-1.8-5.2L5 9l5.2-1.8L12 2zM18 14l.9 2.6L21.5 17.5l-2.6.9L18 21l-.9-2.6L14.5 17.5l2.6-.9L18 14z" />
+      </svg>
+    </button>
+  );
+}
+
 export default function Layout() {
   const { status } = useSync();
   const [showSettings, setShowSettings] = useState(false);
+  const [showLlm, setShowLlm] = useState(false);
   const [dismissedConflict, setDismissedConflict] = useState(false);
 
   const conflict = status?.state === "conflict" ? status.conflict : null;
@@ -77,6 +91,7 @@ export default function Layout() {
           </Link>
           <div className="appbar-controls">
             <SyncIndicator onOpen={() => setShowSettings(true)} />
+            <LlmButton onOpen={() => setShowLlm(true)} />
             <LanguageSwitcher />
             <ThemeToggle />
           </div>
@@ -87,6 +102,7 @@ export default function Layout() {
       </main>
 
       {showSettings && <SyncSettingsDialog onClose={() => setShowSettings(false)} />}
+      {showLlm && <LlmSettingsDialog onClose={() => setShowLlm(false)} />}
 
       {conflict && !dismissedConflict && (
         <SyncConflictDialog conflict={conflict} onClose={() => setDismissedConflict(true)} />

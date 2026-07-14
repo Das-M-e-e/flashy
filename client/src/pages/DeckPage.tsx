@@ -6,6 +6,7 @@ import CardConfidence from "../components/CardConfidence";
 import CardControls, { DEFAULT_FILTER, useFilteredCards, type CardFilterState } from "../components/CardControls";
 import CardEditorModal from "../components/CardEditorModal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import ExamHistory from "../components/ExamHistory";
 import DistributionBar from "../components/DistributionBar";
 import ExportDialog from "../components/ExportDialog";
 import ProgressRing from "../components/ProgressRing";
@@ -158,6 +159,9 @@ export default function DeckPage() {
         <button disabled={cards.length === 0} onClick={() => navigate(`/study/deck/${deckId}`)}>
           {t("deck.study")}
         </button>
+        <button disabled={cards.length === 0} onClick={() => navigate(`/exam/new/deck/${deckId}`)}>
+          {t("exam.create")}
+        </button>
         <button onClick={() => fileInputRef.current?.click()}>{t("deck.import")}</button>
         <input
           type="file"
@@ -212,6 +216,8 @@ export default function DeckPage() {
           )}
         </>
       )}
+
+      {deckId && <ExamHistory deckId={deckId} />}
 
       {editingCard && (
         <CardEditorModal

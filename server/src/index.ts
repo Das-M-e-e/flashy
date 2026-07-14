@@ -1,10 +1,12 @@
 import path from "node:path";
 import cors from "cors";
 import express from "express";
-import { db, migrateEmbeddedMedia } from "./db";
+import { db, failInterruptedExams, migrateEmbeddedMedia } from "./db";
 import { cardsRouter, deckCardsRouter } from "./routes/cards";
 import { decksRouter, projectDecksRouter } from "./routes/decks";
+import { deckExamsRouter, examsRouter, projectExamsRouter } from "./routes/exams";
 import { deckExportRouter, deckImportRouter, projectExportRouter } from "./routes/importExport";
+import { llmRouter } from "./routes/llm";
 import { mediaRouter } from "./routes/media";
 import { projectsRouter } from "./routes/projects";
 import { deckStatsRouter, projectStatsRouter, projectStudyRouter } from "./routes/study";
@@ -25,16 +27,20 @@ app.use("/api/projects/:projectId/decks", projectDecksRouter);
 app.use("/api/projects/:projectId/export", projectExportRouter);
 app.use("/api/projects/:projectId/stats", projectStatsRouter);
 app.use("/api/projects/:projectId/study-cards", projectStudyRouter);
+app.use("/api/projects/:projectId/exams", projectExamsRouter);
 
 app.use("/api/decks", decksRouter);
 app.use("/api/decks/:deckId/cards", deckCardsRouter);
 app.use("/api/decks/:deckId/import", deckImportRouter);
 app.use("/api/decks/:deckId/export", deckExportRouter);
 app.use("/api/decks/:deckId/stats", deckStatsRouter);
+app.use("/api/decks/:deckId/exams", deckExamsRouter);
 
 app.use("/api/cards", cardsRouter);
 app.use("/api/media", mediaRouter);
 app.use("/api/sync", syncRouter);
+app.use("/api/llm", llmRouter);
+app.use("/api/exams", examsRouter);
 
 // API-Fehler als JSON ausliefern -- der Client erwartet {error}, keine HTML-Seite.
 app.use((err: NodeJS.ErrnoException & { status?: number; type?: string }, req: express.Request, res: express.Response, next: express.NextFunction) => {
@@ -64,6 +70,8 @@ const server = app.listen(port, host, () => {
   console.log(`Flashy server läuft auf http://localhost:${port}`);
   // Altbestand mit eingebetteten Medien auf Dateien umstellen ...
   migrateEmbeddedMedia();
+  // Prüfungen, deren Generierung/Bewertung ein Neustart unterbrochen hat, freigeben.
+  failInterruptedExams();
   // ... dann beim Start einmal abgleichen und im Intervall weiterlaufen.
   void syncEngine.sync();
   syncEngine.rescheduleAutoSync();

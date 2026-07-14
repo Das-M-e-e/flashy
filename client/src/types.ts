@@ -132,3 +132,102 @@ export interface RepoOption {
   defaultBranch: string;
   updatedAt: string;
 }
+
+// ---------- LLM-Anbindung ----------
+
+export type LlmProvider = "openai_compatible" | "github_models";
+
+export interface LlmConfigView {
+  configured: boolean;
+  provider: LlmProvider;
+  baseUrl: string;
+  model: string;
+  hasKey: boolean;
+}
+
+// ---------- Prüfungen ----------
+
+export type ExamStatus =
+  | "draft"
+  | "generating"
+  | "ready"
+  | "in_progress"
+  | "submitted"
+  | "grading"
+  | "graded"
+  | "error";
+
+export interface ExamTopic {
+  deckId: string;
+  name: string;
+  points: number | null;
+}
+
+export interface ExamConfig {
+  deckIds: string[];
+  cardIds: string[] | null;
+  topics: ExamTopic[];
+  transferRatio: number;
+  directCardIds: string[];
+  answerFormat: "text" | "mc" | "mixed";
+  mcRatio: number;
+  durationSeconds: number;
+  totalPoints: number;
+  perTopicPoints: boolean;
+  subject: string;
+  allowedAids: string;
+  language: "de" | "en" | "auto";
+}
+
+export type ExamTaskFormat = "text" | "mc";
+
+export interface ExamTask {
+  id: string;
+  topicDeckId: string | null;
+  format: ExamTaskFormat;
+  prompt: string;
+  options?: string[];
+  expected?: string;
+  points: number;
+}
+
+export interface ExamPaper {
+  subject: string;
+  topicNames: string[];
+  totalPoints: number;
+  durationSeconds: number;
+  allowedAids: string;
+  tasks: ExamTask[];
+}
+
+export interface ExamTaskResult {
+  taskId: string;
+  awardedPoints: number;
+  maxPoints: number;
+  comment: string;
+}
+
+export interface ExamResult {
+  taskResults: ExamTaskResult[];
+  totalAwarded: number;
+  totalPoints: number;
+  feedback: string;
+}
+
+export interface Exam {
+  id: string;
+  projectId: string;
+  deckId: string | null;
+  title: string;
+  status: ExamStatus;
+  config: ExamConfig;
+  paper: ExamPaper | null;
+  answers: Record<string, string> | null;
+  result: ExamResult | null;
+  boundDevice: string | null;
+  startedAt: string | null;
+  durationSeconds: number;
+  error: string | null;
+  createdAt: string;
+  updatedAt: string;
+}

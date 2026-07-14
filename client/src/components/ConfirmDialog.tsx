@@ -4,9 +4,13 @@ interface Props {
   message: string;
   onCancel: () => void;
   onConfirm: () => void;
+  /** Beschriftung des Bestätigen-Buttons (Vorgabe: „Löschen"). */
+  confirmLabel?: string;
+  /** Bestätigen als Gefahr-Aktion darstellen (Vorgabe: ja). */
+  danger?: boolean;
 }
 
-export default function ConfirmDialog({ message, onCancel, onConfirm }: Props) {
+export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLabel, danger = true }: Props) {
   const { t } = useLocale();
   return (
     <div className="modal-overlay" onClick={onCancel}>
@@ -14,8 +18,8 @@ export default function ConfirmDialog({ message, onCancel, onConfirm }: Props) {
         <p style={{ margin: 0 }}>{message}</p>
         <div className="modal-actions">
           <button onClick={onCancel}>{t("common.cancel")}</button>
-          <button className="danger" onClick={onConfirm}>
-            {t("common.delete")}
+          <button className={danger ? "danger" : "primary"} onClick={onConfirm}>
+            {confirmLabel ?? t("common.delete")}
           </button>
         </div>
       </div>

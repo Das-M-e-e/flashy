@@ -1,0 +1,211 @@
+import { useEffect, useState } from "react";
+import { api } from "../api";
+import { useLocale } from "../i18n";
+import type { LlmConfigView, LlmProvider } from "../types";
+import ConfirmDialog from "./ConfirmDialog";
+
+export default function LlmSettingsDialog({ onClose }: { onClose: () => void }) {
+  const { t } = useLocale();
+
+  const [config, setConfig] = useState<LlmConfigView | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const [provider, setProvider] = useState<LlmProvider>("openai_compatible");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [key, setKey] = useState("");
+  const [editingKey, setEditingKey] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+
+  const isGithub = provider === "github_models";
+  const hasKey = Boolean(config?.hasKey) && !editingKey;
+
+  useEffect(() => {
+    api
+      .llmConfig()
+      .then((cfg) => {
+        setConfig(cfg);
+        setProvider(cfg.provider);
+        setBaseUrl(cfg.baseUrl);
+        setModel(cfg.model);
+      })
+      .catch((err) => setError(err.message));
+  }, []);
+
+  async function saveConfig(): Promise<boolean> {
+    if (!model.trim()) {
+      setError(t("llm.needModel"));
+      return false;
+    }
+    if (!isGithub && !baseUrl.trim()) {
+      setError(t("llm.needBaseUrl"));
+      return false;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await api.llmSaveConfig({ provider, baseUrl: baseUrl.trim(), model: model.trim() });
+      setConfig(saved);
+      setNotice(t("llm.saved"));
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.save"));
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleSaveKey() {
+    if (!key.trim()) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const saved = await api.llmSaveKey(key.trim());
+      setConfig(saved);
+      setEditingKey(false);
+      setKey("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.save"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTest() {
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    // Erst die aktuellen Einstellungen sichern, dann testen.
+    if (!(await saveConfig())) {
+      setBusy(false);
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await api.llmTest();
+      setNotice(t("llm.testOk", { model: result.model }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.load"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleClear() {
+    setConfirmClear(false);
+    setBusy(true);
+    try {
+      const cfg = await api.llmClear();
+      setConfig(cfg);
+      setProvider(cfg.provider);
+      setBaseUrl(cfg.baseUrl);
+      setModel(cfg.model);
+      setKey("");
+      setEditingKey(false);
+      setNotice(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.delete"));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal modal-wide" onClick={(e) => e.stopPropagation()}>
+        <h3>{t("llm.title")}</h3>
+        <p className="sync-hint">{t("llm.intro")}</p>
+        <p className="sync-hint">{t("llm.privacy")}</p>
+        {error && <div className="error-banner">{error}</div>}
+        {notice && <div className="notice-banner">{notice}</div>}
+
+        <section className="sync-section">
+          <label>
+            {t("llm.provider")}
+            <select value={provider} onChange={(e) => setProvider(e.target.value as LlmProvider)}>
+              <option value="openai_compatible">{t("llm.provider.openai_compatible")}</option>
+              <option value="github_models">{t("llm.provider.github_models")}</option>
+            </select>
+          </label>
+
+          {!isGithub ? (
+            <label>
+              {t("llm.baseUrl")}
+              <input
+                type="text"
+                value={baseUrl}
+                placeholder={t("llm.baseUrlPlaceholder")}
+                onChange={(e) => setBaseUrl(e.target.value)}
+              />
+            </label>
+          ) : (
+            <p className="sync-hint">{t("llm.githubHint")}</p>
+          )}
+          {!isGithub && <p className="sync-hint">{t("llm.baseUrlHint")}</p>}
+
+          <label>
+            {t("llm.model")}
+            <input
+              type="text"
+              value={model}
+              placeholder={isGithub ? t("llm.modelPlaceholderGithub") : t("llm.modelPlaceholderOpenai")}
+              onChange={(e) => setModel(e.target.value)}
+            />
+          </label>
+        </section>
+
+        <section className="sync-section">
+          <h4>{isGithub ? t("llm.keyGithub") : t("llm.key")}</h4>
+          {hasKey ? (
+            <div className="sync-row">
+              <span className="mastery-caption">{t("llm.keySet")}</span>
+              <button onClick={() => setEditingKey(true)}>{t("llm.keyChange")}</button>
+            </div>
+          ) : (
+            <>
+              <input
+                type="password"
+                value={key}
+                placeholder={t("llm.keyPlaceholder")}
+                onChange={(e) => setKey(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveKey()}
+              />
+              <button className="primary" onClick={handleSaveKey} disabled={busy || !key.trim()}>
+                {t("llm.saveKey")}
+              </button>
+            </>
+          )}
+        </section>
+
+        <div className="modal-actions sync-actions">
+          {config?.hasKey && (
+            <>
+              <button className="danger" onClick={() => setConfirmClear(true)} disabled={busy}>
+                {t("llm.clear")}
+              </button>
+              <button onClick={handleTest} disabled={busy || !hasKey}>
+                {t("llm.test")}
+              </button>
+            </>
+          )}
+          <span className="spacer" />
+          <button onClick={onClose}>{t("common.cancel")}</button>
+          <button className="primary" onClick={saveConfig} disabled={busy}>
+            {t("common.save")}
+          </button>
+        </div>
+      </div>
+
+      {confirmClear && (
+        <ConfirmDialog
+          message={t("llm.clearConfirm")}
+          onCancel={() => setConfirmClear(false)}
+          onConfirm={handleClear}
+        />
+      )}
+    </div>
+  );
+}
