@@ -6,8 +6,12 @@ import JSZip from "jszip";
 export const skillRouter = Router();
 
 const SKILL_NAME = "flashy-flashcards";
-// server/(src|dist)/routes -> Repo-Wurzel -> skills/<name>
-const skillDir = path.join(__dirname, "..", "..", "..", "skills", SKILL_NAME);
+// server/(src|dist)/routes -> Repo-Wurzel -> skills/<name>.
+// In der Desktop-Hülle liegt der Ordner woanders -> per SKILL_DIR setzbar.
+const skillsRoot = process.env.SKILL_DIR
+  ? path.resolve(process.env.SKILL_DIR)
+  : path.join(__dirname, "..", "..", "..", "skills");
+const skillDir = path.join(skillsRoot, SKILL_NAME);
 
 /** Rohe SKILL.md ansehen/herunterladen. */
 skillRouter.get("/flashcards.md", (_req, res) => {

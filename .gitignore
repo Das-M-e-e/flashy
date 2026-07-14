@@ -16,9 +16,15 @@ yarn-error.log*
 # Workspaces
 server/node_modules
 client/node_modules
+desktop/node_modules
 server/dist
 client/dist
+desktop/dist
+desktop/release
+desktop/build/icon.png
 *.tsbuildinfo
 server/data
 *.db
 *.db-journal
+# JetBrains IDE
+.idea/

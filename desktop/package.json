@@ -1,0 +1,54 @@
+{
+  "name": "flashy-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Flashy als Desktop-App (Electron)",
+  "author": "Flashy",
+  "main": "dist/main.js",
+  "scripts": {
+    "make-icon": "node scripts/make-icon.mjs",
+    "bundle:server": "esbuild ../server/src/index.ts --bundle --platform=node --format=cjs --target=node22 --outfile=dist/server.cjs --external:node:sqlite",
+    "build:main": "tsc -p tsconfig.json",
+    "build": "npm run make-icon && npm run bundle:server && npm run build:main",
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "devDependencies": {
+    "electron": "^35.0.0",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.2"
+  },
+  "build": {
+    "appId": "com.flashy.app",
+    "productName": "Flashy",
+    "electronVersion": "35.7.5",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      { "from": "../client/dist", "to": "client/dist" },
+      { "from": "../skills", "to": "skills" },
+      { "from": "build/icon.png", "to": "icon.png" }
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "Flashy"
+    },
+    "mac": { "target": ["dmg"], "category": "public.app-category.education" },
+    "linux": { "target": ["AppImage"], "category": "Education" }
+  }
+}
