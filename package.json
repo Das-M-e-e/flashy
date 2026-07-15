@@ -16,7 +16,8 @@
     "start": "npm run start -w server",
     "desktop:build": "npm run build -w client && npm run build -w desktop",
     "desktop:start": "npm run desktop:build && npm run start -w desktop",
-    "desktop:dist": "npm run desktop:build && npm run dist -w desktop"
+    "desktop:dist": "npm run desktop:build && npm run dist -w desktop",
+    "desktop:publish": "npm run desktop:build && npm run dist -w desktop -- --publish always"
   },
   "devDependencies": {
     "concurrently": "^9.1.0"

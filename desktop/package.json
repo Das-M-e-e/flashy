@@ -1,6 +1,10 @@
 {
   "name": "flashy-desktop",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Das-M-e-e/flashy.git"
+  },
   "private": true,
   "description": "Flashy als Desktop-App (Electron)",
   "author": "Flashy",
@@ -14,14 +18,17 @@
     "dist": "electron-builder"
   },
   "devDependencies": {
-    "electron": "^35.0.0",
-    "electron-builder": "^25.1.8",
-    "esbuild": "^0.24.2"
+    "electron": "43.1.0",
+    "electron-builder": "^26.0.0",
+    "esbuild": "^0.25.0"
   },
   "build": {
     "appId": "com.flashy.app",
     "productName": "Flashy",
-    "electronVersion": "35.7.5",
+    "electronVersion": "43.1.0",
+    "publish": [
+      { "provider": "github" }
+    ],
     "directories": {
       "buildResources": "build",
       "output": "release"

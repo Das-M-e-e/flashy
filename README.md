@@ -1,79 +1,147 @@
 # Flashy
 
-Lokal laufende Karteikarten-App mit Projekten, Stapeln, bidirektionalen Karten,
-CSV-Import/-Export und einem count-basierten Wiederholungsalgorithmus.
+Flashy is a local-first flashcard app for studying with spaced repetition. Your
+cards live on your own computer; you can optionally keep them in sync across your
+devices through your **own private GitHub repository**. Flashy also has an AI mode
+that turns your decks into full practice exams and grades them for you.
 
-## Kartentypen
+## Installing
 
-Beim Anlegen/Bearbeiten wählst du den Typ; der Editor passt seine Felder an:
+1. Download the latest **`Flashy Setup <version>.exe`** from the
+   [Releases](../../releases) page and run it (you can choose the install folder
+   and get a desktop shortcut). A portable **`Flashy <version>.exe`** that runs
+   without installing is also provided.
+2. The app isn't code-signed, so Windows SmartScreen may warn on first launch —
+   choose *More info → Run anyway*.
 
-- **Einfach (Basic)** – Vorder-/Rückseite, selbst bewertet; optional bidirektional.
-- **Text-Antwort** – du tippst die Antwort. Sie wird automatisch abgeglichen (inkl.
-  zusätzlich hinterlegter Varianten), die Wertung bleibt aber bei dir: bei knappen
-  Treffern gibt es „Trotzdem richtig".
-- **Multiple Choice** – Einfach- oder Mehrfachauswahl, automatisch gewertet.
-- **Wahr/Falsch** – Aussage gegen die hinterlegte Antwort.
-- **Cloze/Lückentext** – Anki-kompatibel mit `{{c1::…}}`; im Editor markierst du Text
-  und klickst „Lücke einfügen".
+## Getting started
 
-## Markdown & Medien auf den Karten
+1. Create a **project** (a subject, e.g. "Spanish" or "Computer Science").
+2. Add one or more **decks** to it (topics or chapters).
+3. Add **cards** to a deck, or import them from a file.
+4. Hit **Study** on a deck — or study a whole project's decks shuffled.
 
-Alle Textfelder verstehen Markdown: Überschriften, Listen, Betonung, Code-Blöcke,
-Tabellen, Links, Bilder und **Audio**. Je Feld gibt es einen Umschalter **Bearbeiten |
-Vorschau**.
+## Card types
 
-Medien fügst du per „Bild einfügen" / „Audio einfügen" oder ein Bild aus der
-Zwischenablage ein. Sie werden **als eigene Datei** gespeichert (inhaltsadressiert per
-Hash), nicht in die Karte eingebettet — das dedupliziert automatisch, hält die Sync-Datei
-klein und lädt Medien nur einmal ins Repo hoch. Externe Bild-URLs (`![](https://…)`)
-funktionieren weiterhin.
+Pick a type when you add or edit a card:
 
-Rohes HTML wird bewusst **nicht** gerendert, sondern als Text angezeigt — so kann eine
-importierte Karte kein Skript ausführen.
+- **Basic** – front/back, self-graded; optionally quizzed in both directions.
+- **Type the answer** – you type it and it's checked (extra accepted variants can
+  be stored); on near-misses you still get the final say with "Mark correct".
+- **Multiple choice** – single or multiple correct options, graded automatically.
+- **True / False** – judge a statement.
+- **Cloze** – fill in the blanks, Anki-compatible `{{c1::…}}`; in the editor you
+  select text and click "Insert blank".
 
-## Import & Export
+## Markdown & media
 
-Über „Importieren" liest Flashy verschiedene Formate ein (automatisch erkannt): das
-eigene Flashy-Format, generisches JSON, Anki-Textexport (inkl. Cloze) sowie einfache
-CSV/TSV. „Exportieren" öffnet einen Dialog mit Zielauswahl:
+Every text field understands Markdown — headings, lists, emphasis, code blocks,
+tables, links, images and **audio** — with an **Edit | Preview** toggle per field.
 
-- **Flashy (nativ)** – verlustfrei inkl. Typen, Lernfortschritt und Medien (ZIP).
-- **Generisches JSON** – tool-neutral, Medien als ZIP.
-- **Anki (Text + Medien)** – in Anki importierbare Datei (Basic + Cloze); Medien im ZIP
-  zum Ablegen in Ankis Medienordner.
-- **Quizlet** / **Generische CSV** – einfache Paare bzw. Tabelle für andere Apps.
+Insert media with "Insert image" / "Insert audio", or paste an image from the
+clipboard. Media is stored as a **separate file** (addressed by content hash),
+not embedded in the card — this deduplicates automatically, keeps the sync file
+small, and uploads each file to your repo only once. External image URLs
+(`![](https://…)`) work too. Raw HTML is deliberately shown as text, not
+rendered, so an imported card can never run a script.
 
-Unter „Erweitert" lassen sich die zu exportierenden **Kartentypen** filtern und – bei
-CSV/JSON – zusätzliche **Spalten** wählen (z.B. Confidence, Richtig-/Falsch-Zähler).
+## Studying: confidence-based spaced repetition
 
-## Sync über ein eigenes GitHub-Repo
+Instead of scheduling by clock time, Flashy spaces cards by **confidence**: each
+correct answer raises a card's level and each wrong answer lowers it, so
+lower-confidence cards come back around sooner. Decks and projects show a mastery
+bar and a percentage, so you can see at a glance what's still new, being learned,
+known, or fully mastered.
 
-Damit gleichen sich mehrere Geräte ab, ohne dass sie gleichzeitig laufen oder im
-selben Netz sein müssen. Jeder Push ist ein Commit — du bekommst also nebenbei
-eine Versionshistorie und ein Backup.
+## AI practice exams
 
-**Einrichten:**
+Turn your decks into a realistic written exam that the AI creates and grades.
 
-1. Auf GitHub ein (gern privates) Repo anlegen.
-2. Einen Personal Access Token erstellen. Er braucht Schreibrechte auf den
-   Repo-Inhalt:
-   - klassischer Token mit `repo`-Scope, **oder**
-   - fine-grained Token mit *Contents: Read and write*.
-3. In Flashy oben rechts auf die Sync-Anzeige klicken, den Token einfügen und
-   „Token prüfen & Repos laden" wählen.
-4. Das Repo aus dem Dropdown auswählen (Branch wird automatisch vorbelegt), speichern.
-5. Auf dem zweiten Gerät dasselbe Repo auswählen.
+1. Open **Create exam** on a deck or project.
+2. Configure it: which topics/cards to include, the mix of direct recall vs.
+   transfer/application questions, the answer format (free text, multiple choice,
+   or a mix with an adjustable ratio), the duration, the total points (optionally
+   per topic), and the language.
+3. The AI generates the exam. When it's ready you **start** it and a timer begins.
+4. Work through it page by page (cover sheet + one task per page). Answers save
+   automatically. When time runs out you get a short grace period to finish your
+   sentence, then input locks and you submit.
+5. The AI grades it: points per task, a corrected view with the expected answers,
+   and short feedback on which topics are solid and which need work.
 
-> Das Dropdown zeigt genau die Repos, auf die der Token Zugriff hat. Ein fine-grained
-> Token, der nur für ein Repo freigegeben ist, funktioniert — dann steht eben nur
-> dieses eine zur Auswahl.
+Graded exams are kept in the **exam history** (and synced). An exam that's
+currently in progress stays only on the device where you started it.
 
-**Wann synchronisiert wird:** beim Start, im eingestellten Intervall (Standard 5 Minuten),
-beim Beenden und jederzeit manuell über „Jetzt synchronisieren".
+### Setting up AI
 
-**Konflikte** (beide Seiten haben sich seit dem letzten gemeinsamen Stand geändert)
-werden nie automatisch zusammengeführt. Ein Popup zeigt beide Stände mit Gerätename,
-Zeitstempel und Anzahlen, markiert den aktuelleren, und du entscheidest, welcher gilt.
+AI features stay off until you connect a language model under **AI settings**
+(spark icon, top right). Use any OpenAI-compatible endpoint with your own API key,
+or **GitHub Models** with a GitHub token. Your key is stored only on your computer
+and is never synced.
 
-Der Token wird nur lokal in `server/data/flashy.db` gespeichert und nie an den Browser
-zurückgegeben.
+Flashy is otherwise fully local. Once AI is enabled, the content of the cards
+being quizzed is sent to the provider you chose — nothing more.
+
+### Make cards with your own AI
+
+From AI settings you can also download the **flashcard skill** — a small
+instruction file you hand to your LLM (Claude, ChatGPT, …). Attach your lecture
+notes or past exams (or just name a topic) and the LLM produces a file you import
+straight into a deck.
+
+## Import & export
+
+**Import** reads several formats automatically: Flashy's own format, generic JSON,
+Anki text export (incl. Cloze), and plain CSV/TSV.
+
+**Export** a deck or a whole project to:
+
+- **Flashy (native)** – lossless, incl. types, progress and media (ZIP).
+- **Generic JSON** – tool-neutral, media as a ZIP.
+- **Anki (text + media)** – importable file (Basic + Cloze); media in a ZIP for
+  Anki's media folder.
+- **Quizlet** / **generic CSV** – simple pairs or a table for other apps.
+
+Under "Advanced" you can filter which **card types** are exported and — for
+CSV/JSON — add extra **columns** (e.g. confidence, correct/incorrect counts).
+
+## Sync across devices
+
+Flashy syncs through **your own** private GitHub repository, so your cards,
+progress, media and exam history stay in step across computers — without both
+devices being online at once. Every push is a commit, so you also get a version
+history and a backup.
+
+**Set up:**
+
+1. Create a (preferably private) repo on GitHub.
+2. Create a Personal Access Token with write access to repository contents — a
+   classic token with the `repo` scope, or a fine-grained token with
+   *Contents: Read and write*.
+3. In Flashy, click the sync indicator (top right), paste the token and choose
+   "Check token & load repos".
+4. Pick the repo from the dropdown (the branch is pre-filled) and save.
+5. On your other device, select the same repo.
+
+Flashy syncs on start, on a set interval (default 5 min), on quit, and on demand.
+If both sides changed since the last common state, it never merges blindly — a
+dialog shows both versions (device, timestamp, counts), marks the newer one, and
+you choose which wins. The token is stored only locally and never leaves your
+machine.
+
+If you used Flashy from the terminal before, this is also how you bring that data
+into the desktop app: point sync at the same repo.
+
+## Appearance, language & your data
+
+Toggle light/dark theme and switch the interface between English and German from
+the top bar. Your cards and settings are stored in your user profile, so app
+updates don't touch them — and nothing leaves your machine unless you turn on
+sync (your GitHub repo) or AI (your chosen provider).
+
+## For developers
+
+Flashy is an npm workspace: an Express + SQLite server (`server/`), a React
+client (`client/`), and an Electron wrapper (`desktop/`). See
+[desktop/README.md](desktop/README.md) for building the desktop app and cutting
+releases.
