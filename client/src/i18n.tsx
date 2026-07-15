@@ -26,6 +26,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "projects.heading": "Deine Projekte",
     "projects.new": "Neues Projekt",
+    "projects.import": "Projekt importieren (.zip)",
     "projects.empty": "Noch keine Projekte. Lege dein erstes Projekt an.",
     "projects.nameLabel": "Projektname",
     "projects.namePlaceholder": "z.B. Spanisch",
@@ -365,6 +366,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "projects.heading": "Your projects",
     "projects.new": "New project",
+    "projects.import": "Import project (.zip)",
     "projects.empty": "No projects yet. Create your first project.",
     "projects.nameLabel": "Project name",
     "projects.namePlaceholder": "e.g. Spanish",

@@ -32,6 +32,11 @@ export interface ImportedCard {
   stats?: { direction: "forward" | "backward"; correctCount: number; incorrectCount: number }[];
 }
 
+export interface ImportedProjectDeck {
+  name: string;
+  cards: ImportedCard[];
+}
+
 const AUDIO_EXT = /\.(mp3|m4a|aac|ogg|wav|weba|opus)$/i;
 
 function selectedFields(opts: ExportOptions): ExportField[] {
@@ -389,6 +394,63 @@ function parseJsonCards(text: string): ImportedCard[] {
     if (imported) out.push(imported);
   }
   return out;
+}
+
+function deckNameFromEntry(name: string): string {
+  const base = name.split("/").pop() ?? name;
+  return base.replace(/\.[a-z0-9]+$/i, "") || "Stapel";
+}
+
+/** Liest ein Projekt-ZIP (mehrere Stapel-Dateien + gemeinsamer media/-Ordner). */
+async function readProjectZip(
+  buffer: Buffer
+): Promise<{ decks: ImportedProjectDeck[]; media: Map<string, Buffer> }> {
+  const zip = await JSZip.loadAsync(buffer);
+  const media = new Map<string, Buffer>();
+  const decks: ImportedProjectDeck[] = [];
+
+  for (const name of Object.keys(zip.files)) {
+    const entry = zip.files[name];
+    if (entry.dir) continue;
+    if (/^media\//i.test(name)) {
+      media.set(name.toLowerCase(), await entry.async("nodebuffer"));
+      continue;
+    }
+    if (/^readme\.txt$/i.test(name)) continue;
+
+    if (/\.json$/i.test(name)) {
+      const text = await entry.async("string");
+      let obj: { deck?: { name?: string }; name?: string; cards?: unknown[] };
+      try {
+        obj = JSON.parse(text);
+      } catch {
+        continue;
+      }
+      if (!Array.isArray(obj.cards)) continue;
+      const cards: ImportedCard[] = [];
+      for (const c of obj.cards) {
+        const imported = objectToImported(c as Record<string, unknown>);
+        if (imported) cards.push(imported);
+      }
+      const deckName = obj.deck?.name || obj.name || deckNameFromEntry(name);
+      decks.push({ name: deckName, cards });
+    } else if (/\.(txt|csv|tsv)$/i.test(name)) {
+      const text = await entry.async("string");
+      decks.push({ name: deckNameFromEntry(name), cards: importText(text) });
+    }
+  }
+  return { decks, media };
+}
+
+/** Erkennt ein Projekt-Export-ZIP und liefert je Datei einen Stapel (+ gemeinsame Medien). */
+export async function importProjectData(
+  buffer: Buffer,
+  filename: string
+): Promise<{ decks: ImportedProjectDeck[]; media: Map<string, Buffer> }> {
+  if (!/\.zip$/i.test(filename) && buffer.slice(0, 2).toString("latin1") !== "PK") {
+    throw new Error("Projektimport erwartet eine .zip-Datei im Flashy-Exportformat");
+  }
+  return readProjectZip(buffer);
 }
 
 /** Erkennt das Format am Dateinamen/Inhalt und liefert Karten (+ Medien bei ZIP). */

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api";
 import Avatar from "../components/Avatar";
@@ -11,11 +11,13 @@ import type { Project, ProjectStats } from "../types";
 
 export default function ProjectsPage() {
   const { t } = useLocale();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState<Record<string, ProjectStats>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [importing, setImporting] = useState(false);
   const [renameTarget, setRenameTarget] = useState<Project | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
 
@@ -57,6 +59,23 @@ export default function ProjectsPage() {
     setCreating(false);
   }
 
+  async function handleImportProject(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    try {
+      const { project } = await api.importProject(file);
+      const projectStats = await api.projectStats(project.id);
+      setProjects((prev) => [...prev, project]);
+      setStats((prev) => ({ ...prev, [project.id]: projectStats }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("error.import"));
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  }
+
   async function handleRename(id: string, name: string) {
     const updated = await api.renameProject(id, name);
     setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
@@ -84,6 +103,16 @@ export default function ProjectsPage() {
         <button className="primary" onClick={() => setCreating(true)}>
           {t("projects.new")}
         </button>
+        <button disabled={importing} onClick={() => fileInputRef.current?.click()}>
+          {importing ? t("common.loading") : t("projects.import")}
+        </button>
+        <input
+          type="file"
+          accept=".zip"
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          onChange={handleImportProject}
+        />
       </div>
 
       {loading ? (

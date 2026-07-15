@@ -67,6 +67,16 @@ export const api = {
     request<Project>(`/api/projects/${id}`, { method: "PUT", body: JSON.stringify({ name }) }),
   deleteProject: (id: string) => request<void>(`/api/projects/${id}`, { method: "DELETE" }),
   exportProject: (id: string, opts: ExportOptions) => downloadExport(`/api/projects/${id}/export`, opts),
+  importProject: async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`/api/projects/import`, { method: "POST", body: formData });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error ?? `Import fehlgeschlagen (${res.status})`);
+    }
+    return res.json() as Promise<{ project: Project; decks: Deck[]; imported: number }>;
+  },
   projectStats: (id: string) => request<ProjectStats>(`/api/projects/${id}/stats`),
   studyProjectCards: (id: string) => request<Card[]>(`/api/projects/${id}/study-cards`),
 

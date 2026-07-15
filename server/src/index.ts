@@ -7,7 +7,7 @@ import { db, failInterruptedExams, migrateEmbeddedMedia } from "./db";
 import { cardsRouter, deckCardsRouter } from "./routes/cards";
 import { decksRouter, projectDecksRouter } from "./routes/decks";
 import { deckExamsRouter, examsRouter, projectExamsRouter } from "./routes/exams";
-import { deckExportRouter, deckImportRouter, projectExportRouter } from "./routes/importExport";
+import { deckExportRouter, deckImportRouter, projectExportRouter, projectImportRouter } from "./routes/importExport";
 import { llmRouter } from "./routes/llm";
 import { mediaRouter } from "./routes/media";
 import { skillRouter } from "./routes/skill";
@@ -25,6 +25,7 @@ export function createApp(): express.Express {
   app.use(express.json({ limit: "40mb" }));
 
   app.use("/api/projects", projectsRouter);
+  app.use("/api/projects/import", projectImportRouter);
   app.use("/api/projects/:projectId/decks", projectDecksRouter);
   app.use("/api/projects/:projectId/export", projectExportRouter);
   app.use("/api/projects/:projectId/stats", projectStatsRouter);

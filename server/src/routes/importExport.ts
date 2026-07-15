@@ -2,7 +2,14 @@ import { randomUUID } from "node:crypto";
 import { Router, type NextFunction, type Request, type Response } from "express";
 import multer from "multer";
 import * as db from "../db";
-import { exportDeck, exportProject, importData, type ExportOptions, type ImportedCard } from "../formats";
+import {
+  exportDeck,
+  exportProject,
+  importData,
+  importProjectData,
+  type ExportOptions,
+  type ImportedCard,
+} from "../formats";
 
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -100,6 +107,57 @@ deckImportRouter.post("/", uploadFile, async (req: Request<{ deckId: string }>, 
   }
 
   res.status(201).json({ imported: parsed.cards.length, cards: db.listCardsByDeck(deck.id) });
+});
+
+// ---------- Import (Projekt) ----------
+
+function projectNameFromFilename(filename: string): string {
+  const stripped = filename
+    .replace(/\.zip$/i, "")
+    .replace(/\.(flashy|genericJson|anki|quizlet|csv)$/i, "");
+  return stripped.trim() || "Importiertes Projekt";
+}
+
+export const projectImportRouter = Router();
+
+projectImportRouter.post("/", uploadFile, async (req: Request, res) => {
+  if (!req.file) {
+    res.status(400).json({ error: "Keine Datei hochgeladen" });
+    return;
+  }
+
+  let parsed: { decks: { name: string; cards: ImportedCard[] }[]; media: Map<string, Buffer> };
+  try {
+    parsed = await importProjectData(req.file.buffer, req.file.originalname || "import.zip");
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : "Import fehlgeschlagen" });
+    return;
+  }
+  if (parsed.decks.length === 0) {
+    res.status(400).json({ error: "Keine Stapel in der Datei gefunden" });
+    return;
+  }
+
+  const requestedName = typeof req.body?.name === "string" ? req.body.name.trim() : "";
+  const name = requestedName || projectNameFromFilename(req.file.originalname || "");
+  const project = db.createProject(randomUUID(), name);
+
+  const rename = storeImportedMedia(parsed.media);
+  let imported = 0;
+  for (const deck of parsed.decks) {
+    const createdDeck = db.createDeck(randomUUID(), project.id, deck.name);
+    for (const { input, stats } of deck.cards) {
+      const card = db.createCard(randomUUID(), createdDeck.id, {
+        ...input,
+        front: applyRename(input.front, rename),
+        back: applyRename(input.back, rename),
+      });
+      if (stats && stats.length) db.setCardStatsRows(card.id, stats);
+      imported++;
+    }
+  }
+
+  res.status(201).json({ project, decks: db.listDecksByProject(project.id), imported });
 });
 
 // ---------- Export (Deck) ----------
