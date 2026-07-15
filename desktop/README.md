@@ -41,23 +41,39 @@ SmartScreen may warn on first launch.
 > symbolic link" (macOS symlinks in its `winCodeSign` tool). This project uses
 > electron-builder **26+**, where that no longer happens — no workaround needed.
 
-## Publishing releases on GitHub
+## Releasing for all platforms (CI)
 
-electron-builder can upload the installer straight to a GitHub release
-(including `latest.yml` for future auto-updates).
+`electron-builder` cannot cross-build everything: a macOS `.dmg` only builds on
+macOS, Linux best on Linux, Windows on Windows. So multi-platform releases run in
+**GitHub Actions** ([`.github/workflows/release.yml`](../.github/workflows/release.yml)),
+which builds each platform on its own runner and uploads all artifacts to one
+GitHub release:
 
-1. **Token** — create a GitHub PAT with the `repo` scope and set it as an env
-   var: PowerShell `$env:GH_TOKEN = "ghp_…"`.
-2. **Target repo** — taken from the `repository` field in `package.json`
-   (`publish: github`). Point it elsewhere with
-   `{ "provider": "github", "owner": "…", "repo": "…" }`.
-3. **Bump the version** in `desktop/package.json` (`"version"`); otherwise the
-   upload overwrites the existing release.
-4. **Publish** from the repo root: `npm run desktop:publish`. This uploads a
-   **draft** release — review it under *Releases* on GitHub and click *Publish
-   release*.
+- **Windows** — NSIS installer + portable `.exe`
+- **macOS** — universal `.dmg` (Intel + Apple Silicon)
+- **Linux** — `AppImage`
 
-You can also attach the files from `desktop/release/` to a release by hand.
+To cut a release:
+
+1. **Bump the version** in `desktop/package.json` (`"version"`).
+2. Commit, then push a matching tag: `git tag v1.2.3 && git push origin v1.2.3`.
+3. The workflow builds all three and uploads them to a **draft** GitHub release.
+   Review it under *Releases* and click *Publish release*.
+
+It uses the repo's automatic `GITHUB_TOKEN` (no PAT needed) and builds unsigned
+(`CSC_IDENTITY_AUTO_DISCOVERY=false`). You can also trigger it manually from the
+Actions tab (*workflow_dispatch*) to build without publishing.
+
+Signing caveats: unsigned macOS builds hit Gatekeeper (users right-click → Open,
+or you add an Apple Developer ID for notarization); Linux AppImages just need
+`chmod +x`.
+
+### Publishing locally (current OS only)
+
+`npm run desktop:publish` builds and uploads for the OS you're on. Set a token
+first (`$env:GH_TOKEN = "ghp_…"`, `repo` scope). The target repo comes from the
+`repository` field in `package.json` (`publish: github`). Or run
+`npm run desktop:dist` and attach the files from `desktop/release/` by hand.
 
 ## Electron / Node version
 

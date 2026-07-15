@@ -1,0 +1,46 @@
+name: Release
+
+# Baut die Desktop-App für Windows, macOS und Linux und lädt die Artefakte in
+# ein GitHub-Release, sobald ein Versions-Tag (z.B. v1.0.0) gepusht wird.
+on:
+  push:
+    tags:
+      - "v*"
+  # Manuell aus der Actions-Oberfläche startbar (baut, ohne zu veröffentlichen).
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # electron-builder lädt Electron selbst -> Binär-Download beim Install sparen.
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci
+
+      - name: Build & publish
+        env:
+          # Von GitHub bereitgestellt; erlaubt das Anlegen des Releases (contents: write).
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Keine Code-Signatur (kein Zertifikat) -> Signaturschritt überspringen.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        # Auf Tag-Push veröffentlichen, sonst nur bauen (workflow_dispatch).
+        run: >-
+          npm run desktop:build &&
+          npm run dist -w desktop --
+          --publish ${{ startsWith(github.ref, 'refs/tags/') && 'always' || 'never' }}

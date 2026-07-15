@@ -55,7 +55,10 @@
       "createDesktopShortcut": true,
       "shortcutName": "Flashy"
     },
-    "mac": { "target": ["dmg"], "category": "public.app-category.education" },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": "universal" }],
+      "category": "public.app-category.education"
+    },
     "linux": { "target": ["AppImage"], "category": "Education" }
   }
 }
