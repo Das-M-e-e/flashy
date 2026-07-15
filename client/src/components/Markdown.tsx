@@ -1,4 +1,4 @@
-import ReactMarkdown, { defaultUrlTransform } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 /**
@@ -26,13 +26,15 @@ function stopFlip(e: React.MouseEvent): void {
 interface Props {
   children: string;
   className?: string;
+  /** Zusätzliche/überschreibende Renderer, z.B. für interaktive Cloze-Lücken. */
+  components?: Components;
 }
 
 /**
  * Rendert Karteninhalte. Rohes HTML ist bewusst nicht aktiviert (kein rehype-raw),
  * daher gibt es hier weder dangerouslySetInnerHTML noch einen Sanitizer-Bedarf.
  */
-export default function Markdown({ children, className }: Props) {
+export default function Markdown({ children, className, components }: Props) {
   return (
     <div className={`markdown${className ? ` ${className}` : ""}`}>
       <ReactMarkdown
@@ -50,6 +52,7 @@ export default function Markdown({ children, className }: Props) {
               <img {...props} loading="lazy" onClick={stopFlip} />
             ),
           pre: ({ node: _node, ...props }) => <pre {...props} onClick={stopFlip} />,
+          ...components,
         }}
       >
         {children}

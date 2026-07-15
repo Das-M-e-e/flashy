@@ -1,15 +1,8 @@
 import { useState } from "react";
 import { useLocale } from "../../i18n";
+import { normalizeAnswer } from "../../lib/markdown";
 import Markdown from "../Markdown";
 import type { StudyCardProps } from "./StudyCard";
-
-function normalize(s: string): string {
-  return s
-    .toLowerCase()
-    .trim()
-    .replace(/\s+/g, " ")
-    .replace(/[.,;:!?¡¿"'`]+$/g, "");
-}
 
 /** Nutzer tippt die Antwort; Auto-Abgleich, aber die Wertung bleibt beim Nutzer. */
 export default function TypeAnswerCard({ item, onAnswer }: StudyCardProps) {
@@ -17,8 +10,8 @@ export default function TypeAnswerCard({ item, onAnswer }: StudyCardProps) {
   const [typed, setTyped] = useState("");
   const [checked, setChecked] = useState(false);
 
-  const accepted = [item.back, ...(item.data?.answers ?? [])].map(normalize).filter(Boolean);
-  const autoCorrect = accepted.includes(normalize(typed));
+  const accepted = [item.back, ...(item.data?.answers ?? [])].map(normalizeAnswer).filter(Boolean);
+  const autoCorrect = accepted.includes(normalizeAnswer(typed));
 
   return (
     <>

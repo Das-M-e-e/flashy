@@ -985,6 +985,44 @@ input[type="password"] {
   color: var(--text-muted);
 }
 
+.cloze-blank {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  vertical-align: baseline;
+}
+.cloze-blank input {
+  display: inline-block;
+  width: auto;
+  padding: 2px 4px;
+  font: inherit;
+  font-weight: 600;
+  text-align: center;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+}
+.cloze-blank input:focus {
+  outline: none;
+  border-bottom-color: var(--brand-from);
+}
+.cloze-blank.ok input {
+  border-bottom-color: var(--bucket-mastered);
+  color: var(--bucket-mastered);
+}
+.cloze-blank.bad input {
+  border-bottom-color: var(--danger);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+.cloze-blank-answer {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--bucket-mastered);
+}
+
 .choice-options {
   display: flex;
   flex-direction: column;

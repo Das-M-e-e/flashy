@@ -5,21 +5,48 @@ export function hasImage(md: string): boolean {
 
 const CLOZE_RE = /\{\{c\d+::([\s\S]*?)(?:::([\s\S]*?))?\}\}/g;
 
+/** Eine einzelne Lücke: erwartete Antwort plus optionaler Hinweis. */
+export interface ClozeBlank {
+  answer: string;
+  hint?: string;
+}
+
+/** Erkennt den Platzhalter-Token einer Lücke im gerenderten Markdown (`⟦cloze:N⟧`). */
+const CLOZE_TOKEN_RE = /^⟦cloze:(\d+)⟧$/;
+
 /**
- * Wandelt Anki-Cloze-Syntax `{{cN::Antwort::Hinweis}}` in zwei Markdown-Varianten:
- * `masked` (Lücken verdeckt, ggf. Hinweis) und `revealed` (Antworten hervorgehoben).
+ * Ersetzt jede Anki-Cloze-Lücke `{{cN::Antwort::Hinweis}}` durch einen Inline-Code-
+ * Platzhalter (`` `⟦cloze:N⟧` ``), der sich beim Rendern durch ein Eingabefeld
+ * ersetzen lässt, ohne den umgebenden Markdown-Textfluss aufzubrechen.
  */
-export function renderCloze(text: string): { masked: string; revealed: string } {
-  const masked = text.replace(CLOZE_RE, (_all, _answer: string, hint?: string) =>
-    hint ? `**[${hint.trim()}]**` : "**[ … ]**"
-  );
-  const revealed = text.replace(CLOZE_RE, (_all, answer: string) => `**${answer.trim()}**`);
-  return { masked, revealed };
+export function clozeBlanks(text: string): { md: string; blanks: ClozeBlank[] } {
+  const blanks: ClozeBlank[] = [];
+  const md = text.replace(CLOZE_RE, (_all, answer: string, hint?: string) => {
+    const token = `⟦cloze:${blanks.length}⟧`;
+    blanks.push({ answer: answer.trim(), hint: hint?.trim() || undefined });
+    return `\`${token}\``;
+  });
+  return { md, blanks };
+}
+
+/** Liest den Lücken-Index aus einem Platzhalter-Token, falls der Text einer ist. */
+export function clozeTokenIndex(text: string): number | null {
+  const m = CLOZE_TOKEN_RE.exec(text.trim());
+  return m ? Number(m[1]) : null;
 }
 
 /** Plain-Text einer Cloze-Karte (Lücken durch ihre Antwort ersetzt) für Auszüge. */
 export function clozeToPlain(text: string): string {
   return text.replace(CLOZE_RE, (_all, answer: string) => answer.trim());
+}
+
+/** Normalisiert eine getippte Antwort für den (toleranten) Textvergleich. */
+export function normalizeAnswer(s: string): string {
+  return s
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[.,;:!?¡¿"'`]+$/g, "");
 }
 
 /**
