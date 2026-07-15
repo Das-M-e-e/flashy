@@ -10,6 +10,8 @@ import {
   type ExportOptions,
   type ImportedCard,
 } from "../formats";
+import { clozeAnswers } from "../formats/fields";
+import type { Card } from "../types";
 
 const MAX_UPLOAD_BYTES = 64 * 1024 * 1024;
 
@@ -171,6 +173,30 @@ deckExportRouter.post("/", async (req: Request<{ deckId: string }>, res) => {
     return;
   }
   const file = await exportDeck(db.listCardsByDeck(deck.id), deck.name, parseExportOptions(req.body));
+  sendFile(res, file);
+});
+
+// ---------- Export (Karte) ----------
+
+/** Kurzes, dateisystemtaugliches Label für den Dateinamen einer Einzelkarten-Export. */
+function cardLabel(card: Card): string {
+  const raw = card.type === "cloze" ? clozeAnswers(card.front) || card.front : card.front;
+  const plain = raw
+    .replace(/[#*_`>[\]!()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.slice(0, 40) || "Karte";
+}
+
+export const cardExportRouter = Router({ mergeParams: true });
+
+cardExportRouter.post("/", async (req: Request<{ cardId: string }>, res) => {
+  const card = db.getCard(req.params.cardId);
+  if (!card) {
+    res.status(404).json({ error: "Karte nicht gefunden" });
+    return;
+  }
+  const file = await exportDeck([card], cardLabel(card), parseExportOptions(req.body));
   sendFile(res, file);
 });
 

@@ -100,6 +100,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "card.imageFailed": "Datei konnte nicht eingefügt werden.",
     "card.markdownHint": "Markdown wird unterstützt. Bilder auch per Einfügen aus der Zwischenablage.",
     "card.hasImage": "Enthält ein Bild",
+    "card.export": "Exportieren",
 
     "study.itemsInRotation": "{count} Lern-Items im Umlauf",
     "study.answered": "Beantwortet: {count}",
@@ -155,6 +156,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "export.deckTitle": "Stapel exportieren",
     "export.projectTitle": "Projekt exportieren",
+    "export.cardTitle": "Karte exportieren",
     "export.format": "Format / Ziel-App",
     "export.format.flashy": "Flashy (nativ, volle Treue)",
     "export.format.genericJson": "Generisches JSON",
@@ -438,6 +440,7 @@ const translations: Record<Lang, Record<string, string>> = {
     "card.imageFailed": "Could not insert the file.",
     "card.markdownHint": "Markdown is supported. Images can also be pasted from the clipboard.",
     "card.hasImage": "Contains an image",
+    "card.export": "Export",
 
     "study.itemsInRotation": "{count} study items in rotation",
     "study.answered": "Answered: {count}",
@@ -493,6 +496,7 @@ const translations: Record<Lang, Record<string, string>> = {
 
     "export.deckTitle": "Export deck",
     "export.projectTitle": "Export project",
+    "export.cardTitle": "Export card",
     "export.format": "Format / target app",
     "export.format.flashy": "Flashy (native, full fidelity)",
     "export.format.genericJson": "Generic JSON",

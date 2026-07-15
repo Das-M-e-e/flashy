@@ -112,6 +112,7 @@ export const api = {
       body: JSON.stringify(input),
     }),
   deleteCard: (id: string) => request<void>(`/api/cards/${id}`, { method: "DELETE" }),
+  exportCard: (id: string, opts: ExportOptions) => downloadExport(`/api/cards/${id}/export`, opts),
   answerCard: (id: string, direction: Direction, correct: boolean) =>
     request<Card>(`/api/cards/${id}/answer`, {
       method: "POST",
