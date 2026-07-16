@@ -10,6 +10,12 @@ interface DraftFields {
   model: string;
 }
 
+const DEFAULT_BASE_URL = "https://api.openai.com/v1";
+const DEFAULT_MODEL: Record<LlmProvider, string> = {
+  openai_compatible: "gpt-4o-mini",
+  github_models: "openai/gpt-4o-mini",
+};
+
 export default function AiSettingsPanel({ onDirtyChange }: { onDirtyChange: (dirty: boolean) => void }) {
   const { t } = useLocale();
 
@@ -37,8 +43,10 @@ export default function AiSettingsPanel({ onDirtyChange }: { onDirtyChange: (dir
       .then((cfg) => {
         setConfig(cfg);
         setProvider(cfg.provider);
-        setBaseUrl(cfg.baseUrl);
-        setModel(cfg.model);
+        setBaseUrl(cfg.baseUrl || (cfg.provider === "openai_compatible" ? DEFAULT_BASE_URL : ""));
+        setModel(cfg.model || DEFAULT_MODEL[cfg.provider]);
+        // Baseline bleibt der tatsächlich gespeicherte (ggf. leere) Stand -- Defaults
+        // sind nur ein Entwurfs-Vorschlag, der erst per "Speichern" übernommen wird.
         setBaseline({ provider: cfg.provider, baseUrl: cfg.baseUrl, model: cfg.model });
       })
       .catch((err) => setError(err.message));
@@ -89,6 +97,19 @@ export default function AiSettingsPanel({ onDirtyChange }: { onDirtyChange: (dir
     setModel(baseline.model);
   }
 
+  /** Wechselt den Anbieter und aktualisiert Basis-URL/Modell auf dessen Standard,
+   *  aber nur solange das Feld noch den Standard des vorherigen Anbieters zeigt --
+   *  ein selbst eingetragener Wert bleibt beim Wechsel erhalten. */
+  function handleProviderChange(next: LlmProvider) {
+    if (baseUrl === "" || baseUrl === DEFAULT_BASE_URL) {
+      setBaseUrl(next === "openai_compatible" ? DEFAULT_BASE_URL : "");
+    }
+    if (model === "" || model === DEFAULT_MODEL[provider]) {
+      setModel(DEFAULT_MODEL[next]);
+    }
+    setProvider(next);
+  }
+
   async function handleSaveKey() {
     if (!key.trim()) return;
     setBusy(true);
@@ -132,8 +153,8 @@ export default function AiSettingsPanel({ onDirtyChange }: { onDirtyChange: (dir
       const cfg = await api.llmClear();
       setConfig(cfg);
       setProvider(cfg.provider);
-      setBaseUrl(cfg.baseUrl);
-      setModel(cfg.model);
+      setBaseUrl(cfg.baseUrl || (cfg.provider === "openai_compatible" ? DEFAULT_BASE_URL : ""));
+      setModel(cfg.model || DEFAULT_MODEL[cfg.provider]);
       setKey("");
       setEditingKey(false);
       setNotice(null);
@@ -156,7 +177,7 @@ export default function AiSettingsPanel({ onDirtyChange }: { onDirtyChange: (dir
       <section className="sync-section">
         <label>
           {t("llm.provider")}
-          <select value={provider} onChange={(e) => setProvider(e.target.value as LlmProvider)}>
+          <select value={provider} onChange={(e) => handleProviderChange(e.target.value as LlmProvider)}>
             <option value="openai_compatible">{t("llm.provider.openai_compatible")}</option>
             <option value="github_models">{t("llm.provider.github_models")}</option>
           </select>
