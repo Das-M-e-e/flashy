@@ -60,9 +60,11 @@ Wrap the cards in the `flashy-deck` envelope:
 Every card object needs at least `type` and `front`. Front/back and option text
 support **Markdown** (GitHub-flavored: **bold**, *italic*, lists, `code`,
 tables) and **LaTeX math** via KaTeX: inline `$x^2$`, block `$$\int f\,dx$$`.
+Use Markdown to make the card readable. Use `1.`, `2.`, etc. for ordered lists, `-` or `*` for unordered lists, and
+`>` for blockquotes. Use `\n` for line breaks in JSON strings.
 Do **not** embed images — those are managed inside Flashy, not through import.
 Write card content in the **same language as the source material** (e.g.
-German notes → German cards).
+German notes → German cards), if not otherwise specified by the user.
 
 ### Card types
 
@@ -120,7 +122,7 @@ Hide text in `front` with `{{c1::hidden}}`. Number multiple blanks
 
 - Term ⇄ definition, vocabulary, translations → `basic` (`bidirectional: true`).
 - A fact recalled in one direction only → `basic` (`bidirectional: false`).
-- Definitions and key terms embedded in a sentence → `cloze`.
+- Definitions and key terms embedded in a sentence → `cloze`. Don't use cloze for listings, use `basic` instead. Blanks should be filled with 2 - 3 words at most, don't blank out long phrases or entire sentences.
 - Short factual answers worth actively recalling → `type_answer`.
 - Concept checks with distractors, or when the source itself is an MC exam →
   `choice`.
@@ -133,13 +135,14 @@ Favor `basic`, `cloze` and `type_answer` for real recall; use `choice` and
 
 - **Atomic:** one fact, term, or idea per card. Split compound facts.
 - **Precise:** unambiguous questions with a single clearly correct answer.
-- **Minimal:** the answer is the shortest phrase that is still complete.
+- **Minimal:** the answer is the shortest phrase that is still complete. It must fit on a real flashcard. Avoid long paragraphs.
 - **Understanding over verbatim:** rephrase into clean Q/A; don't copy long
   passages. But keep the source's terminology and definitions faithful.
 - **Context in the question:** each card must stand alone without the document.
 - **No trivia padding:** skip page numbers, figure captions, and filler.
 - **Comprehensive from files:** when working from attachments, aim to cover the
   examinable content, not just a few highlights.
+- **No "in the document" references:** avoid "as seen above", "in the figure", "on page 42", "in the document" etc. The card must make sense without the source.
 
 ## Full example
 
