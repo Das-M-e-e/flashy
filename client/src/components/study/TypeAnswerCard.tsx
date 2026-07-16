@@ -53,12 +53,20 @@ export default function TypeAnswerCard({ item, onAnswer }: StudyCardProps) {
             )}
           </div>
           <div className="study-answer-row">
-            <button className="danger" onClick={() => onAnswer(false)}>
-              {t("study.wrongBtn")}
-            </button>
-            <button className="primary" onClick={() => onAnswer(true)}>
-              {autoCorrect ? t("study.correctBtn") : t("study.markCorrect")}
-            </button>
+            {autoCorrect ? (
+              <button className="primary" onClick={() => onAnswer(true)}>
+                {t("study.next")}
+              </button>
+            ) : (
+              <>
+                <button className="danger" onClick={() => onAnswer(false)}>
+                  {t("study.wrongBtn")}
+                </button>
+                <button className="primary" onClick={() => onAnswer(true)}>
+                  {t("study.markCorrect")}
+                </button>
+              </>
+            )}
           </div>
         </>
       )}
