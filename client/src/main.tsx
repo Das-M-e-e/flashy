@@ -5,6 +5,7 @@ import App from "./App";
 import { LocaleProvider } from "./i18n";
 import { SyncProvider } from "./sync";
 import { ThemeProvider } from "./theme";
+import "katex/dist/katex.min.css";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")!).render(

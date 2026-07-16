@@ -63,6 +63,8 @@ export function plainExcerpt(md: string, maxLength = 120): string {
 
   text = text.replace(/```[\s\S]*?```/g, " "); // Code-Blöcke
   text = text.replace(/`([^`]*)`/g, "$1"); // Inline-Code
+  text = text.replace(/\$\$([\s\S]*?)\$\$/g, "$1"); // LaTeX (abgesetzt)
+  text = text.replace(/\$([^$\n]+?)\$/g, "$1"); // LaTeX (inline)
   text = text.replace(/!\[[^\]]*\]\([^)]*\)/g, " "); // Bilder (inkl. data-URI)
   text = text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"); // Links -> Linktext
   text = text.replace(/^\s{0,3}#{1,6}\s+/gm, ""); // Überschriften

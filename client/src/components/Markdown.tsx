@@ -1,5 +1,7 @@
+import rehypeKatex from "rehype-katex";
 import ReactMarkdown, { defaultUrlTransform, type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 
 /**
  * Mappt inhaltsadressierte Medien-Referenzen `media/<hash>.<ext>` auf den lokalen
@@ -33,12 +35,15 @@ interface Props {
 /**
  * Rendert Karteninhalte. Rohes HTML ist bewusst nicht aktiviert (kein rehype-raw),
  * daher gibt es hier weder dangerouslySetInnerHTML noch einen Sanitizer-Bedarf.
+ * rehype-katex erzeugt echte hast-Knoten (kein HTML-String-Einschub) und bleibt
+ * damit innerhalb desselben Sicherheitsmodells.
  */
 export default function Markdown({ children, className, components }: Props) {
   return (
     <div className={`markdown${className ? ` ${className}` : ""}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkMath]}
+        rehypePlugins={[rehypeKatex]}
         urlTransform={urlTransform}
         components={{
           a: ({ node: _node, ...props }) => (

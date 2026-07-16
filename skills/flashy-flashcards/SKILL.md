@@ -59,9 +59,10 @@ Wrap the cards in the `flashy-deck` envelope:
 
 Every card object needs at least `type` and `front`. Front/back and option text
 support **Markdown** (GitHub-flavored: **bold**, *italic*, lists, `code`,
-tables). Do **not** embed images or LaTeX math — images are managed inside
-Flashy, and math is not rendered. Write card content in the **same language as
-the source material** (e.g. German notes → German cards).
+tables) and **LaTeX math** via KaTeX: inline `$x^2$`, block `$$\int f\,dx$$`.
+Do **not** embed images — those are managed inside Flashy, not through import.
+Write card content in the **same language as the source material** (e.g.
+German notes → German cards).
 
 ### Card types
 
