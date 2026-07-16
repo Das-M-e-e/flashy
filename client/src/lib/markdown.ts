@@ -35,6 +35,11 @@ export function clozeTokenIndex(text: string): number | null {
   return m ? Number(m[1]) : null;
 }
 
+/** Breite (in Zeichen) für das Eingabefeld einer Lücke, sodass Hinweis wie Antwort komplett hineinpassen. */
+export function clozeBlankWidth(blank: ClozeBlank): number {
+  return Math.max(blank.hint?.length ?? 0, blank.answer.length, 8);
+}
+
 /** Plain-Text einer Cloze-Karte (Lücken durch ihre Antwort ersetzt) für Auszüge. */
 export function clozeToPlain(text: string): string {
   return text.replace(CLOZE_RE, (_all, answer: string) => answer.trim());

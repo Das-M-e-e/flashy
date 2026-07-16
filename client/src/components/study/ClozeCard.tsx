@@ -1,7 +1,7 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Components } from "react-markdown";
 import { useLocale } from "../../i18n";
-import { clozeBlanks, clozeTokenIndex, normalizeAnswer, type ClozeBlank } from "../../lib/markdown";
+import { clozeBlankWidth, clozeBlanks, clozeTokenIndex, normalizeAnswer, type ClozeBlank } from "../../lib/markdown";
 import Markdown from "../Markdown";
 import type { StudyCardProps } from "./StudyCard";
 
@@ -17,8 +17,7 @@ interface BlankProps {
 
 /** Eingabefeld für eine einzelne Lücke, eingebettet in den Markdown-Textfluss. */
 function ClozeBlankInput({ blank, value, checked, correct, autoFocus, onChange, onEnter }: BlankProps) {
-  // Auf Hinweis-Länge orientieren, nicht auf die Antwort -- sonst verrät die Feldbreite die Lösung.
-  const width = Math.max(blank.hint?.length ?? 0, 8);
+  const width = clozeBlankWidth(blank);
   return (
     <span className={`cloze-blank${checked ? (correct ? " ok" : " bad") : ""}`}>
       <input
@@ -54,6 +53,12 @@ export default function ClozeCard({ item, onAnswer }: StudyCardProps) {
   const correctness = blanks.map((b, i) => normalizeAnswer(values[i] ?? "") === normalizeAnswer(b.answer));
   const allCorrect = correctness.length > 0 && correctness.every(Boolean);
 
+  // Refs statt Closure-Deps: der `code`-Renderer muss über Tastatureingaben hinweg
+  // referenzstabil bleiben, sonst hält react-markdown ihn für eine neue Komponente
+  // und hängt alle Eingabefelder neu ein -- das reißt den Fokus zurück auf das erste.
+  const stateRef = useRef({ values, checked, correctness });
+  stateRef.current = { values, checked, correctness };
+
   const components = useMemo<Components>(
     () => ({
       code: ({ node: _node, className, children, ...props }) => {
@@ -65,21 +70,21 @@ export default function ClozeCard({ item, onAnswer }: StudyCardProps) {
             </code>
           );
         }
+        const { values: v, checked: c, correctness: corr } = stateRef.current;
         return (
           <ClozeBlankInput
             blank={blanks[i]}
-            value={values[i] ?? ""}
-            checked={checked}
-            correct={correctness[i]}
+            value={v[i] ?? ""}
+            checked={c}
+            correct={corr[i]}
             autoFocus={i === 0}
-            onChange={(v) => setValue(i, v)}
+            onChange={(val) => setValue(i, val)}
             onEnter={() => setChecked(true)}
           />
         );
       },
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [blanks, values, checked, correctness]
+    [blanks]
   );
 
   return (
@@ -107,12 +112,20 @@ export default function ClozeCard({ item, onAnswer }: StudyCardProps) {
             </div>
           )}
           <div className="study-answer-row">
-            <button className="danger" onClick={() => onAnswer(false)}>
-              {t("study.wrongBtn")}
-            </button>
-            <button className="primary" onClick={() => onAnswer(true)}>
-              {allCorrect ? t("study.correctBtn") : t("study.markCorrect")}
-            </button>
+            {allCorrect ? (
+              <button className="primary" onClick={() => onAnswer(true)}>
+                {t("study.next")}
+              </button>
+            ) : (
+              <>
+                <button className="danger" onClick={() => onAnswer(false)}>
+                  {t("study.wrongBtn")}
+                </button>
+                <button className="primary" onClick={() => onAnswer(true)}>
+                  {t("study.markCorrect")}
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

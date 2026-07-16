@@ -1,6 +1,8 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { Components } from "react-markdown";
 import { useLocale } from "../i18n";
 import { imageFromClipboard, insertAtCursor, insertAudio, insertImage, MediaTooLargeError } from "../lib/image";
+import { clozeBlankWidth, clozeBlanks, clozeTokenIndex, type ClozeBlank } from "../lib/markdown";
 import Markdown from "./Markdown";
 
 interface Props {
@@ -63,6 +65,33 @@ export default function MarkdownField({ label, value, autoFocus, enableCloze, on
     if (audioInputRef.current) audioInputRef.current.value = "";
   }
 
+  // Lücken werden in der Vorschau als deaktivierte Eingabefelder dargestellt: sichtbar, aber nicht ausfüllbar.
+  const { md: clozePreviewMd, blanks } = useMemo<{ md: string; blanks: ClozeBlank[] }>(
+    () => (enableCloze ? clozeBlanks(value) : { md: value, blanks: [] }),
+    [value, enableCloze]
+  );
+  const clozeComponents = useMemo<Components>(
+    () => ({
+      code: ({ node: _node, className, children, ...props }) => {
+        const i = clozeTokenIndex(String(children));
+        const blank = i !== null ? blanks[i] : undefined;
+        if (!blank) {
+          return (
+            <code className={className} {...props}>
+              {children}
+            </code>
+          );
+        }
+        return (
+          <span className="cloze-blank cloze-blank-static">
+            <input type="text" size={clozeBlankWidth(blank)} placeholder={blank.hint ?? ""} disabled />
+          </span>
+        );
+      },
+    }),
+    [blanks]
+  );
+
   function insertCloze() {
     const textarea = textareaRef.current;
     const n = nextClozeIndex(value);
@@ -92,7 +121,13 @@ export default function MarkdownField({ label, value, autoFocus, enableCloze, on
 
       {preview ? (
         <div className="md-preview">
-          {value.trim() ? <Markdown>{value}</Markdown> : <span className="mastery-caption">{t("card.previewEmpty")}</span>}
+          {value.trim() ? (
+            <Markdown components={enableCloze ? clozeComponents : undefined}>
+              {enableCloze ? clozePreviewMd : value}
+            </Markdown>
+          ) : (
+            <span className="mastery-caption">{t("card.previewEmpty")}</span>
+          )}
         </div>
       ) : (
         <>

@@ -1008,6 +1008,10 @@ input[type="password"] {
   outline: none;
   border-bottom-color: var(--brand-from);
 }
+.cloze-blank-static input:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
 .cloze-blank.ok input {
   border-bottom-color: var(--bucket-mastered);
   color: var(--bucket-mastered);
