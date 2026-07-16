@@ -6,6 +6,7 @@ import type {
   Direction,
   Exam,
   ExamConfig,
+  GeneralConfigView,
   LlmConfigView,
   LlmProvider,
   Project,
@@ -150,6 +151,14 @@ export const api = {
     request<LlmConfigView>("/api/llm/key", { method: "POST", body: JSON.stringify({ key }) }),
   llmClear: () => request<LlmConfigView>("/api/llm/config", { method: "DELETE" }),
   llmTest: () => request<{ ok: boolean; model: string }>("/api/llm/test", { method: "POST", body: JSON.stringify({}) }),
+
+  // ---------- Allgemeine Einstellungen ----------
+  generalConfig: () => request<GeneralConfigView>("/api/general/config"),
+  generalSaveConfig: (patch: {
+    theme?: "light" | "dark" | "system";
+    lang?: "de" | "en";
+    confirmUnsavedChanges?: boolean;
+  }) => request<GeneralConfigView>("/api/general/config", { method: "PUT", body: JSON.stringify(patch) }),
 
   // ---------- Prüfungen ----------
   getExam: (id: string) => request<Exam>(`/api/exams/${id}`),

@@ -13,7 +13,15 @@ interface Props {
 export default function ConfirmDialog({ message, onCancel, onConfirm, confirmLabel, danger = true }: Props) {
   const { t } = useLocale();
   return (
-    <div className="modal-overlay" onClick={onCancel}>
+    <div
+      className="modal-overlay"
+      onClick={(e) => {
+        // Bei verschachtelten Dialogen (z.B. innerhalb der Einstellungen) darf der
+        // Klick nicht bis zum äußeren Overlay durchschlagen und dieses mitschließen.
+        e.stopPropagation();
+        onCancel();
+      }}
+    >
       <div className="modal" onClick={(e) => e.stopPropagation()}>
         <p style={{ margin: 0 }}>{message}</p>
         <div className="modal-actions">

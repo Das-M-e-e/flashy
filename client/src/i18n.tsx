@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { api } from "./api";
 
 export type Lang = "de" | "en";
 
@@ -191,6 +192,19 @@ const translations: Record<Lang, Record<string, string>> = {
     "error.load": "Fehler beim Laden",
     "error.import": "Import fehlgeschlagen",
     "error.save": "Speichern fehlgeschlagen",
+
+    "settings.open": "Einstellungen öffnen",
+    "general.title": "Allgemein",
+    "general.intro": "Design und Sprache der Oberfläche.",
+    "general.theme": "Design",
+    "general.themeLight": "Hell",
+    "general.themeDark": "Dunkel",
+    "general.followSystem": "Systemeinstellung folgen",
+    "general.language": "Sprache",
+    "general.confirmUnsaved": "Vor dem Schließen bei ungesicherten Änderungen warnen",
+    "general.discardTitle": "Ungesicherte Änderungen",
+    "general.discardMessage": "Es gibt ungesicherte Änderungen. Trotzdem verwerfen?",
+    "general.discardConfirm": "Verwerfen",
 
     "sync.title": "Synchronisierung",
     "sync.open": "Sync-Einstellungen öffnen",
@@ -532,6 +546,19 @@ const translations: Record<Lang, Record<string, string>> = {
     "error.import": "Import failed",
     "error.save": "Failed to save",
 
+    "settings.open": "Open settings",
+    "general.title": "General",
+    "general.intro": "Appearance and language of the interface.",
+    "general.theme": "Theme",
+    "general.themeLight": "Light",
+    "general.themeDark": "Dark",
+    "general.followSystem": "Follow system setting",
+    "general.language": "Language",
+    "general.confirmUnsaved": "Warn before closing with unsaved changes",
+    "general.discardTitle": "Unsaved changes",
+    "general.discardMessage": "There are unsaved changes. Discard them anyway?",
+    "general.discardConfirm": "Discard",
+
     "sync.title": "Sync",
     "sync.open": "Open sync settings",
     "sync.state.disabled": "Not set up",
@@ -697,7 +724,17 @@ function interpolate(template: string, vars?: Vars): string {
 }
 
 interface LocaleContextValue {
+  /** Aktuelle Sprache; während einer Vorschau im Einstellungsdialog der Entwurfswert. */
   lang: Lang;
+  /** Zuletzt gespeicherte Sprache -- Referenz für Änderungserkennung und "Abbrechen". */
+  savedLang: Lang;
+  /** Nur Vorschau: ändert Anzeige/State, ohne zu speichern (für den Einstellungsdialog). */
+  preview: (lang: Lang) => void;
+  /** Übernimmt den aktuellen Entwurf dauerhaft (localStorage + Server). */
+  commit: () => void;
+  /** Verwirft den Entwurf, stellt die zuletzt gespeicherte Sprache wieder her. */
+  revert: () => void;
+  /** Schnellzugriff im Header: wechselt sofort die Sprache und speichert direkt. */
   setLang: (lang: Lang) => void;
   t: (key: TranslateKey, vars?: Vars) => string;
 }
@@ -711,17 +748,53 @@ function initialLang(): Lang {
 }
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
-  const [lang, setLang] = useState<Lang>(initialLang);
+  const [lang, setLangState] = useState<Lang>(initialLang);
+  const [savedLang, setSavedLang] = useState<Lang>(lang);
 
+  // Server ist die Quelle der Wahrheit über Sitzungen/Geräte hinweg (localStorage
+  // dient nur als sofort verfügbarer Cache fürs erste Rendern ohne Flackern).
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, lang);
+    api
+      .generalConfig()
+      .then((cfg) => {
+        if (cfg.lang === "de" || cfg.lang === "en") {
+          setLangState(cfg.lang);
+          setSavedLang(cfg.lang);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Nur die Darstellung folgt sofort dem (ggf. noch nicht gespeicherten) Entwurf.
+  useEffect(() => {
     document.documentElement.setAttribute("lang", lang);
   }, [lang]);
+
+  function commit(): void {
+    localStorage.setItem(STORAGE_KEY, lang);
+    setSavedLang(lang);
+    api.generalSaveConfig({ lang }).catch(() => {});
+  }
+
+  function revert(): void {
+    setLangState(savedLang);
+  }
+
+  function setLang(next: Lang): void {
+    setLangState(next);
+    setSavedLang(next);
+    localStorage.setItem(STORAGE_KEY, next);
+    api.generalSaveConfig({ lang: next }).catch(() => {});
+  }
 
   const t = (key: TranslateKey, vars?: Vars): string =>
     interpolate(translations[lang][key] ?? translations.de[key] ?? key, vars);
 
-  return <LocaleContext.Provider value={{ lang, setLang, t }}>{children}</LocaleContext.Provider>;
+  return (
+    <LocaleContext.Provider value={{ lang, savedLang, preview: setLangState, commit, revert, setLang, t }}>
+      {children}
+    </LocaleContext.Provider>
+  );
 }
 
 export function useLocale(): LocaleContextValue {

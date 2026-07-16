@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { decryptSecret, encryptSecret, isEncrypted } from "./secretBox";
 import type {
   Card,
   CardData,
@@ -114,6 +115,13 @@ db.exec(`
     model TEXT NOT NULL DEFAULT ''
   );
 
+  CREATE TABLE IF NOT EXISTS general_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    theme TEXT,
+    lang TEXT,
+    confirm_unsaved INTEGER NOT NULL DEFAULT 1
+  );
+
   CREATE TABLE IF NOT EXISTS exams (
     id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -142,6 +150,12 @@ db.exec(`
   if (!cols.includes("type")) db.exec("ALTER TABLE cards ADD COLUMN type TEXT NOT NULL DEFAULT 'basic'");
   if (!cols.includes("data")) db.exec("ALTER TABLE cards ADD COLUMN data TEXT");
 }
+{
+  const cols = allRows<{ name: string }>("PRAGMA table_info(general_config)").map((c) => c.name);
+  if (!cols.includes("confirm_unsaved")) {
+    db.exec("ALTER TABLE general_config ADD COLUMN confirm_unsaved INTEGER NOT NULL DEFAULT 1");
+  }
+}
 
 // Beim allerersten Anlegen von sync_state gelten bereits vorhandene Daten als
 // "lokal geändert" -- sonst würde der erste Sync sie stillschweigend durch den
@@ -165,6 +179,23 @@ db.exec(`
     db.prepare(
       "INSERT INTO llm_config (id, provider, base_url, model) VALUES (1, 'openai_compatible', '', '')"
     ).run();
+  }
+  const general = getRow<{ id: number }>("SELECT id FROM general_config WHERE id = 1");
+  if (!general) {
+    db.prepare("INSERT INTO general_config (id, theme, lang) VALUES (1, NULL, NULL)").run();
+  }
+}
+
+// Bestehende Klartext-Geheimnisse (vor Einführung der Verschlüsselung) einmalig
+// nachträglich verschlüsseln, ohne dass Nutzer Token/Key erneut eingeben müssen.
+{
+  const syncRow = getRow<{ token: string | null }>("SELECT token FROM sync_config WHERE id = 1");
+  if (syncRow?.token && !isEncrypted(syncRow.token)) {
+    db.prepare("UPDATE sync_config SET token = ? WHERE id = 1").run(encryptSecret(syncRow.token));
+  }
+  const llmRow = getRow<{ api_key: string | null }>("SELECT api_key FROM llm_config WHERE id = 1");
+  if (llmRow?.api_key && !isEncrypted(llmRow.api_key)) {
+    db.prepare("UPDATE llm_config SET api_key = ? WHERE id = 1").run(encryptSecret(llmRow.api_key));
   }
 }
 
@@ -468,15 +499,20 @@ export interface SyncConfigRow {
 }
 
 export function getSyncConfig(): SyncConfigRow {
-  return getRow<SyncConfigRow>(
+  const row = getRow<SyncConfigRow>(
     `SELECT owner, repo, branch, path, token, github_login as githubLogin,
             device_name as deviceName, auto_sync as autoSync, interval_minutes as intervalMinutes
      FROM sync_config WHERE id = 1`
   )!;
+  row.token = decryptSecret(row.token);
+  return row;
 }
 
 export function setSyncToken(token: string | null, githubLogin: string | null): void {
-  db.prepare("UPDATE sync_config SET token = ?, github_login = ? WHERE id = 1").run(token, githubLogin);
+  db.prepare("UPDATE sync_config SET token = ?, github_login = ? WHERE id = 1").run(
+    encryptSecret(token),
+    githubLogin
+  );
 }
 
 export function setSyncTarget(opts: {
@@ -570,9 +606,11 @@ export interface LlmConfigRow {
 }
 
 export function getLlmConfig(): LlmConfigRow {
-  return getRow<LlmConfigRow>(
+  const row = getRow<LlmConfigRow>(
     "SELECT provider, base_url as baseUrl, api_key as apiKey, model FROM llm_config WHERE id = 1"
   )!;
+  row.apiKey = decryptSecret(row.apiKey);
+  return row;
 }
 
 export function setLlmConfig(opts: { provider: LlmProvider; baseUrl: string; model: string }): void {
@@ -584,13 +622,37 @@ export function setLlmConfig(opts: { provider: LlmProvider; baseUrl: string; mod
 }
 
 export function setLlmKey(key: string | null): void {
-  db.prepare("UPDATE llm_config SET api_key = ? WHERE id = 1").run(key);
+  db.prepare("UPDATE llm_config SET api_key = ? WHERE id = 1").run(encryptSecret(key));
 }
 
 export function clearLlmConfig(): void {
   db.prepare(
     "UPDATE llm_config SET provider = 'openai_compatible', base_url = '', api_key = NULL, model = '' WHERE id = 1"
   ).run();
+}
+
+// ---------- Allgemeine Einstellungen ----------
+
+export interface GeneralConfigRow {
+  theme: string | null;
+  lang: string | null;
+  confirmUnsaved: number;
+}
+
+export function getGeneralConfig(): GeneralConfigRow {
+  return getRow<GeneralConfigRow>(
+    "SELECT theme, lang, confirm_unsaved as confirmUnsaved FROM general_config WHERE id = 1"
+  )!;
+}
+
+/** Setzt nur die übergebenen Felder -- jede Einstellung wird unabhängig gespeichert. */
+export function setGeneralConfig(patch: { theme?: string; lang?: string; confirmUnsaved?: boolean }): GeneralConfigRow {
+  if ("theme" in patch) db.prepare("UPDATE general_config SET theme = ? WHERE id = 1").run(patch.theme!);
+  if ("lang" in patch) db.prepare("UPDATE general_config SET lang = ? WHERE id = 1").run(patch.lang!);
+  if ("confirmUnsaved" in patch) {
+    db.prepare("UPDATE general_config SET confirm_unsaved = ? WHERE id = 1").run(patch.confirmUnsaved! ? 1 : 0);
+  }
+  return getGeneralConfig();
 }
 
 // ---------- Prüfungen ----------

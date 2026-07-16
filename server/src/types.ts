@@ -163,6 +163,15 @@ export interface LlmConfigView {
   hasKey: boolean;
 }
 
+// ---------- Allgemeine Einstellungen ----------
+
+/** `theme`/`lang` `null` heißt: server-seitig noch nicht gesetzt -- Client entscheidet lokal (z.B. OS-Präferenz). */
+export interface GeneralConfigView {
+  theme: "light" | "dark" | "system" | null;
+  lang: "de" | "en" | null;
+  confirmUnsavedChanges: boolean;
+}
+
 // ---------- Prüfungen ----------
 
 export type ExamStatus =

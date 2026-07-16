@@ -7,6 +7,7 @@ import { db, failInterruptedExams, migrateEmbeddedMedia } from "./db";
 import { cardsRouter, deckCardsRouter } from "./routes/cards";
 import { decksRouter, projectDecksRouter } from "./routes/decks";
 import { deckExamsRouter, examsRouter, projectExamsRouter } from "./routes/exams";
+import { generalRouter } from "./routes/general";
 import {
   cardExportRouter,
   deckExportRouter,
@@ -50,6 +51,7 @@ export function createApp(): express.Express {
   app.use("/api/media", mediaRouter);
   app.use("/api/sync", syncRouter);
   app.use("/api/llm", llmRouter);
+  app.use("/api/general", generalRouter);
   app.use("/api/exams", examsRouter);
   app.use("/api/skill", skillRouter);
 

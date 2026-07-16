@@ -145,6 +145,14 @@ export interface LlmConfigView {
   hasKey: boolean;
 }
 
+// ---------- Allgemeine Einstellungen ----------
+
+export interface GeneralConfigView {
+  theme: "light" | "dark" | "system" | null;
+  lang: "de" | "en" | null;
+  confirmUnsavedChanges: boolean;
+}
+
 // ---------- Prüfungen ----------
 
 export type ExamStatus =
